@@ -70,6 +70,19 @@ class PDFFile(db.Model):
     file_size = db.Column(db.BigInteger)
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+    # Add this new field:
+    download_enabled = db.Column(db.Boolean, default=True)
+    
+class PDFFile(db.Model):
+    __tablename__ = 'pdf_files'
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(255), nullable=False)
+    original_name = db.Column(db.String(255), nullable=False)
+    s3_key = db.Column(db.String(500), nullable=False)
+    folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=False)
+    file_size = db.Column(db.BigInteger)
+    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
 class FolderPermission(db.Model):
     __tablename__ = 'folder_permissions'
@@ -237,11 +250,13 @@ def upload_files(folder_id):
     db.session.commit()
     return jsonify({'success': True, 'uploaded': len(uploaded_files)})
 
-@app.route('/folders/<int:folder_id>/files')
+@app.route('/view/<int:file_id>')
 @login_required
-def list_folder_files(folder_id):
-    if not user_has_folder_permission(current_user.id, folder_id, 'read'):
-        return jsonify({'success': False, 'message': 'No access'}), 403
+def view_pdf(file_id):
+    pdf_file = PDFFile.query.get_or_404(file_id)
+    
+    if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'read'):
+        return jsonify({'error': 'Access denied'}), 403
     
     files = PDFFile.query.filter_by(folder_id=folder_id).all()
     file_list = []
