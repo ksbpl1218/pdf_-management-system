@@ -1,82 +1,215 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>PDF Viewer - {{ filename }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ filename }} - PDF Viewer</title>
     <style>
-        body { 
-            margin: 0; 
-            padding: 0; 
-            font-family: Arial, sans-serif;
-            background: #2c3e50;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            height: 100vh;
             overflow: hidden;
         }
-        
-        .viewer-header {
-            background: #34495e;
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 10px 20px;
+            padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             z-index: 1000;
+            position: relative;
         }
-        
-        .file-info h2 {
-            margin: 0;
-            font-size: 16px;
+
+        .header h1 {
+            font-size: 1.4em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        
-        .file-info p {
-            margin: 5px 0 0 0;
-            font-size: 11px;
-            opacity: 0.8;
-        }
-        
-        .viewer-controls button {
-            padding: 6px 12px;
-            border: none;
+
+        .pdf-icon {
+            width: 24px;
+            height: 24px;
+            background: rgba(255,255,255,0.2);
             border-radius: 4px;
-            cursor: pointer;
-            background: #95a5a6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 0.9em;
+        }
+
+        .view-only-badge {
+            background: rgba(255, 193, 7, 0.9);
+            color: #333;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .lock-icon {
+            width: 14px;
+            height: 14px;
+            background: #333;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M6 10v2h12v-2c0-3.31-2.69-6-6-6S6 6.69 6 10zm6-8c4.42 0 8 3.58 8 8v2h1c.55 0 1 .45 1 1v8c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1v-8c0-.55.45-1 1-1h1v-2c0-4.42 3.58-8 8-8z'/%3E%3C/svg%3E") no-repeat center;
+            mask-size: contain;
+        }
+
+        .close-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
             color: white;
-            margin-left: 8px;
-            font-size: 11px;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
-        
-        .viewer-controls button:hover {
-            background: #7f8c8d;
+
+        .close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
         }
-        
-        #pdfContainer {
-            position: absolute;
-            top: 60px;
-            left: 0;
-            right: 0;
-            bottom: 0;
+
+        .pdf-container {
+            height: calc(100vh - 70px);
+            background: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .pdf-viewer {
             width: 100%;
-            height: calc(100vh - 60px);
+            height: 100%;
             border: none;
             background: white;
         }
-        
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: #666;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        .error-message {
+            background: #ff4757;
+            color: white;
+            padding: 15px 20px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
         .watermark {
-            position: fixed;
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%) rotate(-45deg);
-            font-size: 36px;
-            color: rgba(0, 0, 0, 0.03);
-            pointer-events: none;
-            z-index: 500;
-            user-select: none;
+            font-size: 60px;
+            color: rgba(255, 0, 0, 0.1);
             font-weight: bold;
+            pointer-events: none;
+            z-index: 5;
+            user-select: none;
+            font-family: Arial, sans-serif;
         }
-        
-        /* Security measures */
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .header {
+                padding: 10px 15px;
+            }
+
+            .header h1 {
+                font-size: 1.1em;
+            }
+
+            .header-info {
+                gap: 10px;
+                font-size: 0.8em;
+            }
+
+            .view-only-badge {
+                padding: 3px 8px;
+                font-size: 0.75em;
+            }
+
+            .close-btn {
+                padding: 6px 12px;
+                font-size: 0.8em;
+            }
+
+            .pdf-container {
+                height: calc(100vh - 60px);
+            }
+
+            .watermark {
+                font-size: 40px;
+            }
+        }
+
+        /* Disable context menu and selection on the entire page */
         body {
             -webkit-user-select: none;
             -moz-user-select: none;
@@ -85,186 +218,140 @@
             -webkit-touch-callout: none;
             -webkit-tap-highlight-color: transparent;
         }
-        
-        /* Hide scrollbars */
-        ::-webkit-scrollbar {
-            width: 0px;
-            background: transparent;
-        }
-        
-        /* Disable print media */
-        @media print {
-            body { display: none !important; }
+
+        /* Additional security measures */
+        .pdf-viewer {
+            pointer-events: auto;
         }
     </style>
 </head>
-<body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
-    <div class="viewer-header">
-        <div class="file-info">
-            <h2>{{ filename }}</h2>
-            <p>🔒 View Only - Download Disabled</p>
-        </div>
-        <div class="viewer-controls">
-            <button onclick="window.close();">Close</button>
+<body>
+    <div class="header">
+        <h1>
+            <div class="pdf-icon">📄</div>
+            {{ filename }}
+        </h1>
+        <div class="header-info">
+            <div class="view-only-badge">
+                <div class="lock-icon"></div>
+                View Only - Download Disabled
+            </div>
+            <button class="close-btn" onclick="closeViewer()">
+                ← Close
+            </button>
         </div>
     </div>
-    
-    <div class="watermark" id="userWatermark">CONFIDENTIAL</div>
-    
-    <iframe id="pdfContainer" src="{{ pdf_url }}"></iframe>
-    
+
+    <div class="error-message" id="errorMessage">
+        Failed to load PDF. Please try again later.
+    </div>
+
+    <div class="pdf-container">
+        <div class="watermark">VIEW ONLY</div>
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+            <div class="loading-text">Loading PDF...</div>
+        </div>
+        <iframe 
+            id="pdfViewer"
+            class="pdf-viewer" 
+            src="/pdf/{{ file_id }}#toolbar=0&navpanes=0&scrollbar=0"
+            onload="hideLoading()"
+            onerror="showError()">
+        </iframe>
+    </div>
+
     <script>
-        let startTime = Date.now();
-        let suspiciousAttempts = 0;
-        
-        // Comprehensive security measures
-        document.addEventListener('keydown', function(e) {
-            const forbiddenKeys = [
-                'F12', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11'
-            ];
-            
-            // Block function keys
-            if (forbiddenKeys.includes(e.key)) {
-                e.preventDefault();
-                suspiciousAttempts++;
-                return false;
-            }
-            
-            // Block common shortcuts
-            if (e.ctrlKey || e.metaKey) {
-                const blockedKeys = ['s', 'a', 'p', 'c', 'v', 'x', 'i', 'j', 'u', 'shift+i', 'shift+j'];
-                if (blockedKeys.includes(e.key.toLowerCase()) || 
-                    (e.shiftKey && ['i', 'j', 'c'].includes(e.key.toLowerCase()))) {
-                    e.preventDefault();
-                    suspiciousAttempts++;
-                    return false;
-                }
-            }
-            
-            // Monitor suspicious activity
-            if (suspiciousAttempts > 3) {
-                alert('Suspicious activity detected. This session is being monitored.');
-                suspiciousAttempts = 0; // Reset counter
-            }
-        });
-        
-        // Disable right-click
+        // Disable right-click context menu
         document.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             return false;
         });
-        
-        // Disable drag operations
+
+        // Disable common keyboard shortcuts for downloading/saving
+        document.addEventListener('keydown', function(e) {
+            // Disable Ctrl+S (Save), Ctrl+P (Print), Ctrl+A (Select All), F12 (DevTools)
+            if ((e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'a')) || 
+                e.key === 'F12' || 
+                (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C'))) {
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        // Disable drag and drop
         document.addEventListener('dragstart', function(e) {
             e.preventDefault();
             return false;
         });
-        
-        // Disable text selection
-        document.addEventListener('selectstart', function(e) {
-            e.preventDefault();
-            return false;
-        });
-        
-        // Monitor window focus (detect if user tries to open dev tools)
-        let windowFocused = true;
-        window.addEventListener('blur', function() {
-            windowFocused = false;
-        });
-        
-        window.addEventListener('focus', function() {
-            windowFocused = true;
-        });
-        
-        // Check for suspicious window size changes (dev tools)
-        let originalWidth = window.innerWidth;
-        let originalHeight = window.innerHeight;
-        
-        window.addEventListener('resize', function() {
-            if (Math.abs(window.innerWidth - originalWidth) > 100 || 
-                Math.abs(window.innerHeight - originalHeight) > 100) {
-                suspiciousAttempts++;
+
+        // Function to hide loading overlay
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                setTimeout(() => {
+                    overlay.classList.add('hidden');
+                }, 500);
             }
-        });
-        
-        // Disable common screenshot shortcuts
-        document.addEventListener('keydown', function(e) {
-            // Windows: Alt+PrtScn, PrtScn
-            if (e.key === 'PrintScreen') {
-                e.preventDefault();
-                alert('Screenshots are not allowed');
-                return false;
-            }
-            
-            // Mac: Cmd+Shift+3, Cmd+Shift+4, Cmd+Shift+5
-            if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
-                e.preventDefault();
-                alert('Screenshots are not allowed');
-                return false;
-            }
-        });
-        
-        // Clear clipboard periodically to prevent copy operations
-        setInterval(function() {
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText('');
-            }
-        }, 1000);
-        
-        // Monitor for iframe manipulation
-        setInterval(function() {
-            const iframe = document.getElementById('pdfContainer');
-            const currentSrc = iframe.src;
-            
-            // If PDF URL has been tampered with, reload
-            if (!currentSrc.includes('{{ pdf_url.split("?")[0] }}')) {
-                window.location.reload();
-            }
-        }, 2000);
-        
-        // Log session end when window closes
-        window.addEventListener('beforeunload', function() {
-            const sessionDuration = Date.now() - startTime;
-            
-            // Send session info (you can implement this endpoint)
-            navigator.sendBeacon('/api/log_session_end', JSON.stringify({
-                duration: sessionDuration,
-                suspicious_attempts: suspiciousAttempts
-            }));
-        });
-        
-        // Add user-specific watermark
-        setTimeout(function() {
-            const watermark = document.getElementById('userWatermark');
-            watermark.textContent = `CONFIDENTIAL - ${new Date().toLocaleDateString()}`;
-        }, 1000);
-        
-        // Disable printing through CSS and JS
-        window.addEventListener('beforeprint', function(e) {
-            e.preventDefault();
-            alert('Printing is not allowed');
-            return false;
-        });
-        
-        // Additional protection against common bypass attempts
-        Object.defineProperty(document, 'hidden', {
-            get: function() { return false; },
-            configurable: false
-        });
-        
-        // Block console access attempts
-        let devtools = false;
-        setInterval(function() {
-            if (window.outerHeight - window.innerHeight > 200 || 
-                window.outerWidth - window.innerWidth > 200) {
-                if (!devtools) {
-                    devtools = true;
-                    alert('Developer tools detected. Please close them to continue.');
-                }
+        }
+
+        // Function to show error message
+        function showError() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'block';
+        }
+
+        // Function to close the viewer
+        function closeViewer() {
+            if (window.history.length > 1) {
+                window.history.back();
             } else {
-                devtools = false;
+                window.location.href = '/';
             }
-        }, 500);
+        }
+
+        // Additional security: Clear browser cache for this page
+        window.addEventListener('beforeunload', function() {
+            // This helps prevent caching of the PDF content
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    names.forEach(function(name) {
+                        caches.delete(name);
+                    });
+                });
+            }
+        });
+
+        // Disable text selection on the iframe (additional measure)
+        document.getElementById('pdfViewer').addEventListener('load', function() {
+            try {
+                const iframeDoc = this.contentDocument || this.contentWindow.document;
+                if (iframeDoc) {
+                    iframeDoc.body.style.userSelect = 'none';
+                    iframeDoc.body.style.webkitUserSelect = 'none';
+                }
+            } catch (e) {
+                // Cross-origin restrictions may prevent this, which is fine
+                console.log('Cross-origin restrictions in place (good for security)');
+            }
+        });
+
+        // Monitor for attempts to open in new window/tab
+        window.addEventListener('beforeunload', function(e) {
+            // This can help detect when someone tries to navigate away
+            return undefined;
+        });
+
+        // Prevent iframe content from being accessed directly
+        if (window.self !== window.top) {
+            // If this page is being loaded in an iframe, redirect to main page
+            window.top.location = window.location;
+        }
+
+        // Auto-hide loading after timeout as fallback
+        setTimeout(function() {
+            hideLoading();
+        }, 10000); // 10 seconds timeout
     </script>
 </body>
 </html>
