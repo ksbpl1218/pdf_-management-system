@@ -91,7 +91,7 @@
                     const folderDiv = document.createElement('div');
                     folderDiv.className = 'folder-item';
                     folderDiv.onclick = () => selectFolder(folder.id, folder.folder_name);
-                    folderDiv.innerHTML = 📁 ${folder.folder_name} (${folder.permission_level});
+                    folderDiv.innerHTML = `📁 ${folder.folder_name} (${folder.permission_level})`;
                     folderList.appendChild(folderDiv);
                 });
             } catch (error) {
@@ -122,7 +122,7 @@
 
         async function loadFiles(folderId) {
             try {
-                const response = await fetch(/folders/${folderId}/files);
+                const response = await fetch(`/folders/${folderId}/files`);
                 const data = await response.json();
                 
                 const fileList = document.getElementById('fileList');
@@ -147,7 +147,7 @@
         }
 
         function viewFile(fileId) {
-            window.open(/view/${fileId}, '_blank');
+            window.open(`/view/${fileId}`, '_blank');
         }
 
         function setupUploadArea() {
@@ -187,3 +187,82 @@
             });
             
             try {
+                const response = await fetch(`/upload/${currentFolderId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Uploaded ${data.uploaded} files successfully!`);
+                    loadFiles(currentFolderId);
+                } else {
+                    alert('Upload failed: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Upload failed');
+            }
+        }
+
+        function showUploadArea() {
+            const uploadArea = document.getElementById('uploadArea');
+            uploadArea.style.display = uploadArea.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function showCreateFolder() {
+            document.getElementById('createFolderModal').style.display = 'block';
+        }
+
+        function hideCreateFolder() {
+            document.getElementById('createFolderModal').style.display = 'none';
+            document.getElementById('folderName').value = '';
+            document.getElementById('folderDescription').value = '';
+        }
+
+        async function createFolder() {
+            const folderName = document.getElementById('folderName').value;
+            const description = document.getElementById('folderDescription').value;
+            
+            if (!folderName) {
+                alert('Please enter a folder name');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/create_folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        folder_name: folderName,
+                        description: description
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    hideCreateFolder();
+                    loadFolders();
+                    alert('Folder created successfully!');
+                } else {
+                    alert('Error creating folder');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error creating folder');
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/logout');
+                window.location.href = '/login';
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+    </script>
+</body>
+</html>
