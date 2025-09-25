@@ -11,6 +11,7 @@ import json
 from dotenv import load_dotenv
 import io
 from botocore.exceptions import ClientError
+from functools import wraps
 
 # Load environment variables
 load_dotenv()
@@ -86,8 +87,22 @@ class FolderPermission(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Decorator for admin-only routes
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            return jsonify({'error': 'Admin access required'}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
 # Helper Functions
 def user_has_folder_permission(user_id, folder_id, required_level='read'):
+    # Admins have access to everything
+    user = User.query.get(user_id)
+    if user and user.is_admin:
+        return True
+        
     permission = FolderPermission.query.filter_by(
         user_id=user_id, 
         folder_id=folder_id
@@ -128,7 +143,10 @@ def get_pdf_from_s3(s3_key):
 @app.route('/')
 def index():
     if current_user.is_authenticated:
-        return render_template('dashboard.html')
+        if current_user.is_admin:
+            return render_template('admin_dashboard.html')
+        else:
+            return render_template('user_dashboard.html')
     return render_template('login.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -142,7 +160,12 @@ def login():
         
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return jsonify({'success': True, 'message': 'Login successful'})
+            return jsonify({
+                'success': True, 
+                'message': 'Login successful',
+                'is_admin': user.is_admin,
+                'redirect': '/admin' if user.is_admin else '/dashboard'
+            })
         
         return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
     
@@ -161,10 +184,12 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({'success': False, 'message': 'Email already exists'}), 400
     
+    # New users are regular users by default, not admins
     user = User(
         username=username,
         email=email,
-        password_hash=generate_password_hash(password)
+        password_hash=generate_password_hash(password),
+        is_admin=False
     )
     
     db.session.add(user)
@@ -178,8 +203,115 @@ def logout():
     logout_user()
     return jsonify({'success': True, 'message': 'Logged out successfully'})
 
+# Admin routes
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_dashboard():
+    return render_template('admin_dashboard.html')
+
+@app.route('/dashboard')
+@login_required
+def user_dashboard():
+    return render_template('user_dashboard.html')
+
+# User Management Routes (Admin only)
+@app.route('/api/users', methods=['GET'])
+@login_required
+@admin_required
+def get_all_users():
+    users = User.query.all()
+    users_data = []
+    for user in users:
+        users_data.append({
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'is_active': user.is_active,
+            'is_admin': user.is_admin,
+            'created_at': user.created_at.isoformat()
+        })
+    return jsonify({'users': users_data})
+
+@app.route('/api/users', methods=['POST'])
+@login_required
+@admin_required
+def create_user():
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+    is_admin = data.get('is_admin', False)
+    
+    if User.query.filter_by(username=username).first():
+        return jsonify({'success': False, 'message': 'Username already exists'}), 400
+    
+    if User.query.filter_by(email=email).first():
+        return jsonify({'success': False, 'message': 'Email already exists'}), 400
+    
+    user = User(
+        username=username,
+        email=email,
+        password_hash=generate_password_hash(password),
+        is_admin=is_admin
+    )
+    
+    db.session.add(user)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'User created successfully'})
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@login_required
+@admin_required
+def update_user(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+    
+    if 'username' in data:
+        existing_user = User.query.filter_by(username=data['username']).first()
+        if existing_user and existing_user.id != user_id:
+            return jsonify({'success': False, 'message': 'Username already exists'}), 400
+        user.username = data['username']
+    
+    if 'email' in data:
+        existing_user = User.query.filter_by(email=data['email']).first()
+        if existing_user and existing_user.id != user_id:
+            return jsonify({'success': False, 'message': 'Email already exists'}), 400
+        user.email = data['email']
+    
+    if 'is_active' in data:
+        user.is_active = data['is_active']
+    
+    if 'is_admin' in data:
+        user.is_admin = data['is_admin']
+    
+    if 'password' in data and data['password']:
+        user.password_hash = generate_password_hash(data['password'])
+    
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'User updated successfully'})
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    
+    # Prevent deleting the last admin
+    if user.is_admin:
+        admin_count = User.query.filter_by(is_admin=True).count()
+        if admin_count <= 1:
+            return jsonify({'success': False, 'message': 'Cannot delete the last admin user'}), 400
+    
+    db.session.delete(user)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'User deleted successfully'})
+
+# Folder Management
 @app.route('/create_folder', methods=['POST'])
 @login_required
+@admin_required  # Only admins can create folders
 def create_folder():
     data = request.get_json()
     folder_name = data.get('folder_name')
@@ -218,6 +350,7 @@ def create_folder():
 
 @app.route('/upload/<int:folder_id>', methods=['POST'])
 @login_required
+@admin_required  # Only admins can upload files
 def upload_files(folder_id):
     if not user_has_folder_permission(current_user.id, folder_id, 'write'):
         return jsonify({'success': False, 'message': 'No write permission'}), 403
@@ -248,6 +381,91 @@ def upload_files(folder_id):
     db.session.commit()
     return jsonify({'success': True, 'uploaded': len(uploaded_files)})
 
+# File Management (Admin only routes)
+@app.route('/api/files', methods=['GET'])
+@login_required
+@admin_required
+def get_all_files():
+    files = PDFFile.query.join(Folder).all()
+    files_data = []
+    for file in files:
+        folder = Folder.query.get(file.folder_id)
+        uploader = User.query.get(file.uploaded_by)
+        files_data.append({
+            'id': file.id,
+            'original_name': file.original_name,
+            'folder_name': folder.folder_name if folder else 'Unknown',
+            'upload_date': file.upload_date.isoformat(),
+            'uploaded_by': uploader.username if uploader else 'Unknown',
+            'file_size': file.file_size
+        })
+    return jsonify({'files': files_data})
+
+@app.route('/api/files/<int:file_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_file(file_id):
+    pdf_file = PDFFile.query.get_or_404(file_id)
+    
+    # Delete from S3
+    try:
+        s3_client.delete_object(Bucket=S3_BUCKET, Key=pdf_file.s3_key)
+    except Exception as e:
+        print(f"S3 deletion error: {e}")
+    
+    # Delete from database
+    db.session.delete(pdf_file)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'File deleted successfully'})
+
+# Permission Management
+@app.route('/api/permissions', methods=['POST'])
+@login_required
+@admin_required
+def grant_permission():
+    data = request.get_json()
+    user_id = data.get('user_id')
+    folder_id = data.get('folder_id')
+    permission_level = data.get('permission_level', 'read')
+    
+    # Check if permission already exists
+    existing = FolderPermission.query.filter_by(
+        user_id=user_id, 
+        folder_id=folder_id
+    ).first()
+    
+    if existing:
+        existing.permission_level = permission_level
+        existing.granted_by = current_user.id
+        existing.granted_at = datetime.utcnow()
+    else:
+        permission = FolderPermission(
+            user_id=user_id,
+            folder_id=folder_id,
+            permission_level=permission_level,
+            granted_by=current_user.id
+        )
+        db.session.add(permission)
+    
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Permission granted successfully'})
+
+@app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def revoke_permission(user_id, folder_id):
+    permission = FolderPermission.query.filter_by(
+        user_id=user_id,
+        folder_id=folder_id
+    ).first_or_404()
+    
+    db.session.delete(permission)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'message': 'Permission revoked successfully'})
+
+# Regular user routes (viewing only)
 @app.route('/folders/<int:folder_id>/files')
 @login_required
 def list_folder_files(folder_id):
@@ -314,26 +532,38 @@ def serve_pdf(file_id):
 @app.route('/api/folders')
 @login_required
 def get_user_folders():
-    # Get folders user has access to
-    user_folders = db.session.query(Folder).join(
-        FolderPermission
-    ).filter(
-        FolderPermission.user_id == current_user.id
-    ).all()
-    
-    folders_data = []
-    for folder in user_folders:
-        permission = FolderPermission.query.filter_by(
-            user_id=current_user.id,
-            folder_id=folder.id
-        ).first()
+    if current_user.is_admin:
+        # Admins see all folders
+        folders = Folder.query.all()
+        folders_data = []
+        for folder in folders:
+            folders_data.append({
+                'id': folder.id,
+                'folder_name': folder.folder_name,
+                'folder_path': folder.folder_path,
+                'permission_level': 'admin'
+            })
+    else:
+        # Regular users only see folders they have permission for
+        user_folders = db.session.query(Folder).join(
+            FolderPermission
+        ).filter(
+            FolderPermission.user_id == current_user.id
+        ).all()
         
-        folders_data.append({
-            'id': folder.id,
-            'folder_name': folder.folder_name,
-            'folder_path': folder.folder_path,
-            'permission_level': permission.permission_level
-        })
+        folders_data = []
+        for folder in user_folders:
+            permission = FolderPermission.query.filter_by(
+                user_id=current_user.id,
+                folder_id=folder.id
+            ).first()
+            
+            folders_data.append({
+                'id': folder.id,
+                'folder_name': folder.folder_name,
+                'folder_path': folder.folder_path,
+                'permission_level': permission.permission_level
+            })
     
     return jsonify({'folders': folders_data})
 
