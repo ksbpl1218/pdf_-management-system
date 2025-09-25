@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template, send_file, session
+from flask import Flask, request, jsonify, render_template, send_file, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -9,6 +9,8 @@ import boto3
 from datetime import datetime
 import json
 from dotenv import load_dotenv
+import io
+from botocore.exceptions import ClientError
 
 # Load environment variables
 load_dotenv()
@@ -70,19 +72,6 @@ class PDFFile(db.Model):
     file_size = db.Column(db.BigInteger)
     upload_date = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    # Add this new field:
-    download_enabled = db.Column(db.Boolean, default=True)
-    
-class PDFFile(db.Model):
-    __tablename__ = 'pdf_files'
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(255), nullable=False)
-    original_name = db.Column(db.String(255), nullable=False)
-    s3_key = db.Column(db.String(500), nullable=False)
-    folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=False)
-    file_size = db.Column(db.BigInteger)
-    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
-    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
 
 class FolderPermission(db.Model):
     __tablename__ = 'folder_permissions'
@@ -125,6 +114,15 @@ def upload_to_s3(file_obj, s3_key):
     except Exception as e:
         print(f"S3 upload error: {e}")
         return False
+
+def get_pdf_from_s3(s3_key):
+    """Fetch PDF content from S3 and return as bytes"""
+    try:
+        response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
+        return response['Body'].read()
+    except ClientError as e:
+        print(f"S3 download error: {e}")
+        return None
 
 # Routes
 @app.route('/')
@@ -250,13 +248,11 @@ def upload_files(folder_id):
     db.session.commit()
     return jsonify({'success': True, 'uploaded': len(uploaded_files)})
 
-@app.route('/view/<int:file_id>')
+@app.route('/folders/<int:folder_id>/files')
 @login_required
-def view_pdf(file_id):
-    pdf_file = PDFFile.query.get_or_404(file_id)
-    
-    if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'read'):
-        return jsonify({'error': 'Access denied'}), 403
+def list_folder_files(folder_id):
+    if not user_has_folder_permission(current_user.id, folder_id, 'read'):
+        return jsonify({'success': False, 'message': 'No access'}), 403
     
     files = PDFFile.query.filter_by(folder_id=folder_id).all()
     file_list = []
@@ -278,16 +274,42 @@ def view_pdf(file_id):
     if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'read'):
         return jsonify({'error': 'Access denied'}), 403
     
-    # Generate pre-signed URL for S3
-    try:
-        url = s3_client.generate_presigned_url(
-            'get_object',
-            Params={'Bucket': S3_BUCKET, 'Key': pdf_file.s3_key},
-            ExpiresIn=3600  # 1 hour
-        )
-        return render_template('pdf_viewer.html', pdf_url=url, filename=pdf_file.original_name)
-    except Exception as e:
-        return jsonify({'error': 'Could not generate PDF URL'}), 500
+    # Instead of pre-signed URL, serve PDF through Flask with view-only headers
+    return render_template('pdf_viewer.html', 
+                         file_id=file_id, 
+                         filename=pdf_file.original_name)
+
+@app.route('/pdf/<int:file_id>')
+@login_required
+def serve_pdf(file_id):
+    """Serve PDF content directly through Flask with view-only headers"""
+    pdf_file = PDFFile.query.get_or_404(file_id)
+    
+    if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'read'):
+        return jsonify({'error': 'Access denied'}), 403
+    
+    # Fetch PDF content from S3
+    pdf_content = get_pdf_from_s3(pdf_file.s3_key)
+    
+    if pdf_content is None:
+        return jsonify({'error': 'Could not retrieve PDF'}), 500
+    
+    # Create response with view-only headers
+    response = Response(
+        pdf_content,
+        mimetype='application/pdf',
+        headers={
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'inline; filename="view-only.pdf"',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'SAMEORIGIN'
+        }
+    )
+    
+    return response
 
 @app.route('/api/folders')
 @login_required
