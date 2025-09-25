@@ -236,7 +236,7 @@
         // Add user-specific watermark
         setTimeout(function() {
             const watermark = document.getElementById('userWatermark');
-            watermark.textContent = CONFIDENTIAL - ${new Date().toLocaleDateString()};
+            watermark.textContent = `CONFIDENTIAL - ${new Date().toLocaleDateString()}`;
         }, 1000);
         
         // Disable printing through CSS and JS
