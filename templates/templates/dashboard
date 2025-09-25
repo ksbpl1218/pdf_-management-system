@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Management Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .main-container { display: flex; gap: 20px; }
+        .sidebar { width: 300px; background: white; padding: 20px; border-radius: 8px; height: fit-content; }
+        .content { flex: 1; background: white; padding: 20px; border-radius: 8px; }
+        .folder-item { padding: 10px; margin: 5px 0; background: #f8f9fa; border-radius: 4px; cursor: pointer; }
+        .folder-item:hover { background: #e9ecef; }
+        .folder-item.active { background: #007bff; color: white; }
+        .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
+        .file-card { border: 1px solid #ddd; padding: 15px; border-radius: 8px; text-align: center; cursor: pointer; }
+        .file-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+        .btn:hover { background: #0056b3; }
+        .upload-area { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; border-radius: 8px; }
+        .upload-area.dragover { border-color: #007bff; background: #f0f8ff; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 8px; min-width: 400px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>PDF Management System</h1>
+        <div>
+            <button class="btn" onclick="showCreateFolder()">Create Folder</button>
+            <button class="btn" onclick="logout()">Logout</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="sidebar">
+            <h3>Folders</h3>
+            <div id="folderList"></div>
+        </div>
+
+        <div class="content">
+            <div id="folderHeader">
+                <h3>Select a folder to view files</h3>
+            </div>
+
+            <div class="upload-area" id="uploadArea" style="display: none;">
+                <p>Drag and drop PDF files here or click to select</p>
+                <input type="file" id="fileInput" multiple accept=".pdf" style="display: none;">
+            </div>
+
+            <div id="fileList" class="file-grid"></div>
+        </div>
+    </div>
+
+    <!-- Create Folder Modal -->
+    <div id="createFolderModal" class="modal">
+        <div class="modal-content">
+            <h3>Create New Folder</h3>
+            <div style="margin: 15px 0;">
+                <label>Folder Name:</label>
+                <input type="text" id="folderName" style="width: 100%; padding: 8px; margin-top: 5px;">
+            </div>
+            <div style="margin: 15px 0;">
+                <label>Description:</label>
+                <textarea id="folderDescription" style="width: 100%; padding: 8px; margin-top: 5px; height: 60px;"></textarea>
+            </div>
+            <div>
+                <button class="btn" onclick="createFolder()">Create</button>
+                <button class="btn" style="background: #6c757d;" onclick="hideCreateFolder()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentFolderId = null;
+
+        // Load folders when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFolders();
+            setupUploadArea();
+        });
+
+        async function loadFolders() {
+            try {
+                const response = await fetch('/api/folders');
+                const data = await response.json();
+                
+                const folderList = document.getElementById('folderList');
+                folderList.innerHTML = '';
+                
+                data.folders.forEach(folder => {
+                    const folderDiv = document.createElement('div');
+                    folderDiv.className = 'folder-item';
+                    folderDiv.onclick = () => selectFolder(folder.id, folder.folder_name);
+                    folderDiv.innerHTML = 📁 ${folder.folder_name} (${folder.permission_level});
+                    folderList.appendChild(folderDiv);
+                });
+            } catch (error) {
+                console.error('Error loading folders:', error);
+            }
+        }
+
+        async function selectFolder(folderId, folderName) {
+            currentFolderId = folderId;
+            
+            // Update UI
+            document.querySelectorAll('.folder-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            document.getElementById('folderHeader').innerHTML = `
+                <h3>${folderName}</h3>
+                <button class="btn" onclick="showUploadArea()">Upload Files</button>
+            `;
+            
+            // Load files
+            loadFiles(folderId);
+            
+            // Show upload area
+            document.getElementById('uploadArea').style.display = 'block';
+        }
+
+        async function loadFiles(folderId) {
+            try {
+                const response = await fetch(/folders/${folderId}/files);
+                const data = await response.json();
+                
+                const fileList = document.getElementById('fileList');
+                fileList.innerHTML = '';
+                
+                if (data.success) {
+                    data.files.forEach(file => {
+                        const fileDiv = document.createElement('div');
+                        fileDiv.className = 'file-card';
+                        fileDiv.onclick = () => viewFile(file.id);
+                        fileDiv.innerHTML = `
+                            <div style="font-size: 24px;">📄</div>
+                            <div><strong>${file.original_name}</strong></div>
+                            <div><small>${new Date(file.upload_date).toLocaleDateString()}</small></div>
+                        `;
+                        fileList.appendChild(fileDiv);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading files:', error);
+            }
+        }
+
+        function viewFile(fileId) {
+            window.open(/view/${fileId}, '_blank');
+        }
+
+        function setupUploadArea() {
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('fileInput');
+            
+            uploadArea.addEventListener('click', () => {
+                if (currentFolderId) fileInput.click();
+            });
+            
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                if (currentFolderId) handleFiles(e.dataTransfer.files);
+            });
+            
+            fileInput.addEventListener('change', (e) => {
+                if (currentFolderId) handleFiles(e.target.files);
+            });
+        }
+
+        async function handleFiles(files) {
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                if (file.type === 'application/pdf') {
+                    formData.append('files', file);
+                }
+            });
+            
+            try {
