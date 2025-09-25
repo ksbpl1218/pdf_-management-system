@@ -108,7 +108,7 @@ class FolderPermission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=False)
-    permission_level = db.Column(db.String(20), default='read')  # Changed from Enum to String for better compatibility
+    permission_level = db.Column(db.String(20), default='read')  # Changed from Enum to String
     granted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     granted_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -773,4 +773,8 @@ def init_db():
             else:
                 logger.info("Admin user already exists")
     except Exception as e:
-        logger.error
+        logger.error(f"Database initialization error: {e}")
+
+if __name__ == '__main__':
+    init_db()
+    port = int(os.
