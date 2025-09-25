@@ -491,4 +491,27 @@
                     alert('Error deleting file');
                 }
             } catch (error) {
-                console.error('Error deleting file
+                console.error('Error deleting file:', error);
+                alert('Error deleting file');
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/logout');
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout error:', error);
+                window.location.href = '/';
+            }
+        }
+
+        // Close modals when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
