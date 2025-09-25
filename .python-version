@@ -1,4 +1,1 @@
-echo "3.12.0" > .python-version
-git add .python-version
-git commit -m "Force Python 3.12 for compatibility"
-git push origin main
+
