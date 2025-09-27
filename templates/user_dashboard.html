@@ -30,16 +30,24 @@
             align-items: center;
             gap: 1rem;
         }
-        .logout-btn {
+        .logout-btn, .forgot-password-btn {
             background-color: #e74c3c;
             color: white;
             border: none;
             padding: 0.5rem 1rem;
             border-radius: 4px;
             cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .forgot-password-btn {
+            background-color: #f39c12;
         }
         .logout-btn:hover {
             background-color: #c0392b;
+        }
+        .forgot-password-btn:hover {
+            background-color: #e67e22;
         }
         .container {
             max-width: 1200px;
@@ -165,6 +173,49 @@
             color: #666;
             padding: 2rem;
         }
+        .forgot-password-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+        .user-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -172,7 +223,10 @@
         <h1>PDF Management System - User Dashboard</h1>
         <div class="user-info">
             <span>Welcome, User</span>
-            <button class="logout-btn" onclick="logout()">Logout</button>
+            <div class="user-actions">
+                <button class="forgot-password-btn" onclick="openForgotPasswordModal()">Reset Password</button>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
         </div>
     </div>
 
@@ -190,11 +244,31 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modal-folder-name">Folder Files</h3>
-                <button class="close-modal" onclick="closeModal()">Close</button>
+                <button class="close-modal" onclick="closeModal('files-modal')">Close</button>
             </div>
             <div id="files-container">
                 <div class="loading">Loading files...</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Forgot Password Modal -->
+    <div id="forgot-password-modal" class="forgot-password-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Reset Password</h3>
+                <button class="close-modal" onclick="closeModal('forgot-password-modal')">&times;</button>
+            </div>
+            <form id="forgot-password-form">
+                <div class="form-group">
+                    <label for="reset-email">Enter your email address:</label>
+                    <input type="email" id="reset-email" name="email" required placeholder="your-email@example.com">
+                    <small style="color: #666; display: block; margin-top: 0.5rem;">
+                        A new password will be sent to your email address.
+                    </small>
+                </div>
+                <button type="submit" class="btn btn-primary">Send New Password</button>
+            </form>
         </div>
     </div>
 
@@ -269,15 +343,57 @@
             }
         }
 
-        function closeModal() {
-            document.getElementById('files-modal').style.display = 'none';
+        function openForgotPasswordModal() {
+            document.getElementById('forgot-password-modal').style.display = 'block';
         }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Handle forgot password form submission
+        document.getElementById('forgot-password-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const email = formData.get('email');
+            
+            if (!email) {
+                alert('Please enter your email address');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Password reset instructions have been sent to your email. Please check your inbox and spam folder.');
+                    closeModal('forgot-password-modal');
+                    document.getElementById('forgot-password-form').reset();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Forgot password error:', error);
+                alert('Error processing password reset request. Please try again.');
+            }
+        });
 
         // Close modal when clicking outside
         window.addEventListener('click', function(event) {
             const modal = document.getElementById('files-modal');
+            const forgotModal = document.getElementById('forgot-password-modal');
             if (event.target === modal) {
-                closeModal();
+                closeModal('files-modal');
+            }
+            if (event.target === forgotModal) {
+                closeModal('forgot-password-modal');
             }
         });
 
