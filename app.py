@@ -252,68 +252,7 @@ def login():
         try:
             data = request.get_json()
             if not data:
-                return jsonify({'success': False, 'message': 'Failed to revoke permission'}), 500
-
-# Health check route
-@app.route('/health')
-def health_check():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
-
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    db.session.rollback()
-    return jsonify({'error': 'Internal server error'}), 500
-
-# Initialize database tables
-def init_db():
-    """Initialize the database and create default admin user"""
-    try:
-        with app.app_context():
-            # Create all tables
-            db.create_all()
-            
-            # Check if admin user exists
-            admin_user = User.query.filter_by(is_admin=True).first()
-            if not admin_user:
-                # Create default admin user
-                default_admin = User(
-                    username='admin',
-                    email='admin@example.com',
-                    password_hash=generate_password_hash('admin123'),
-                    is_admin=True,
-                    is_active=True
-                )
-                db.session.add(default_admin)
-                db.session.commit()
-                logger.info("Default admin user created: username=admin, password=admin123")
-            
-            logger.info("Database initialized successfully")
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        raise
-
-if __name__ == '__main__':
-    try:
-        # Initialize database
-        init_db()
-        
-        # Get port from environment variable or default to 5000
-        port = int(os.getenv('PORT', 5000))
-        
-        # Run the application
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=os.getenv('FLASK_ENV') == 'development'
-        )
-    except Exception as e:
-        logger.error(f"Application startup failed: {e}")
-        raise 'No data provided'}), 400
+                return jsonify({'success': False, 'message': 'No data provided'}), 400
             
             username = data.get('username')
             password = data.get('password')
@@ -575,13 +514,13 @@ def delete_user(user_id):
 def get_folders():
     try:
         if current_user.is_admin:
-            # Admins can see all folders
             folders = Folder.query.all()
         else:
-            # Regular users can only see folders they have permission to
-            folder_permissions = FolderPermission.query.filter_by(user_id=current_user.id).all()
-            folder_ids = [fp.folder_id for fp in folder_permissions]
-            folders = Folder.query.filter(Folder.id.in_(folder_ids)).all()
+            # Get folders user has permission to
+            user_folders = db.session.query(Folder).join(FolderPermission).filter(
+                FolderPermission.user_id == current_user.id
+            ).all()
+            folders = user_folders
         
         folders_data = []
         for folder in folders:
@@ -590,7 +529,6 @@ def get_folders():
                 'folder_name': folder.folder_name,
                 'folder_path': folder.folder_path,
                 'parent_folder_id': folder.parent_folder_id,
-                'created_by': folder.created_by,
                 'created_at': folder.created_at.isoformat(),
                 'description': folder.description
             })
@@ -610,20 +548,20 @@ def create_folder():
             return jsonify({'success': False, 'message': 'No data provided'}), 400
         
         folder_name = data.get('folder_name')
-        folder_path = data.get('folder_path')
         parent_folder_id = data.get('parent_folder_id')
         description = data.get('description', '')
         
         if not folder_name:
             return jsonify({'success': False, 'message': 'Folder name required'}), 400
         
-        # Generate folder path if not provided
-        if not folder_path:
-            folder_path = f"/{folder_name}"
-            if parent_folder_id:
-                parent_folder = Folder.query.get(parent_folder_id)
-                if parent_folder:
-                    folder_path = f"{parent_folder.folder_path}/{folder_name}"
+        # Build folder path
+        if parent_folder_id:
+            parent_folder = Folder.query.get(parent_folder_id)
+            if not parent_folder:
+                return jsonify({'success': False, 'message': 'Parent folder not found'}), 400
+            folder_path = f"{parent_folder.folder_path}/{folder_name}"
+        else:
+            folder_path = folder_name
         
         folder = Folder(
             folder_name=folder_name,
@@ -642,24 +580,54 @@ def create_folder():
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Failed to create folder'}), 500
 
+@app.route('/api/folders/<int:folder_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_folder(folder_id):
+    try:
+        folder = Folder.query.get_or_404(folder_id)
+        
+        # Check if folder has files
+        files_count = PDFFile.query.filter_by(folder_id=folder_id).count()
+        if files_count > 0:
+            return jsonify({'success': False, 'message': 'Cannot delete folder with files'}), 400
+        
+        # Check if folder has subfolders
+        subfolders_count = Folder.query.filter_by(parent_folder_id=folder_id).count()
+        if subfolders_count > 0:
+            return jsonify({'success': False, 'message': 'Cannot delete folder with subfolders'}), 400
+        
+        # Delete folder permissions
+        FolderPermission.query.filter_by(folder_id=folder_id).delete()
+        
+        db.session.delete(folder)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Folder deleted successfully'})
+    except Exception as e:
+        logger.error(f"Error deleting folder: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to delete folder'}), 500
+
+# File Management Routes
 @app.route('/api/folders/<int:folder_id>/files', methods=['GET'])
 @login_required
 def get_folder_files(folder_id):
     try:
-        # Check if user has permission to view this folder
-        if not user_has_folder_permission(current_user.id, folder_id, 'view'):
+        # Check permission
+        if not current_user.is_admin and not user_has_folder_permission(current_user.id, folder_id):
             return jsonify({'error': 'Access denied'}), 403
         
         files = PDFFile.query.filter_by(folder_id=folder_id).all()
         files_data = []
+        
         for file in files:
             files_data.append({
                 'id': file.id,
                 'filename': file.filename,
                 'original_name': file.original_name,
                 'file_size': file.file_size,
-                'upload_date': file.upload_date.isoformat(),
-                'uploaded_by': file.uploaded_by
+                'upload_date': file.upload_date.isoformat()
             })
         
         return jsonify({'files': files_data})
@@ -669,105 +637,123 @@ def get_folder_files(folder_id):
 
 @app.route('/api/folders/<int:folder_id>/upload', methods=['POST'])
 @login_required
-def upload_pdf(folder_id):
+def upload_file(folder_id):
     try:
-        # Check if user has permission to upload to this folder
-        if not user_has_folder_permission(current_user.id, folder_id, 'admin'):
+        # Check permission
+        if not current_user.is_admin and not user_has_folder_permission(current_user.id, folder_id, 'admin'):
             return jsonify({'error': 'Upload permission required'}), 403
         
         if not s3_client:
-            return jsonify({'success': False, 'message': 'File upload not configured'}), 500
+            return jsonify({'error': 'File upload not configured'}), 500
         
         if 'file' not in request.files:
-            return jsonify({'success': False, 'message': 'No file provided'}), 400
+            return jsonify({'error': 'No file provided'}), 400
         
         file = request.files['file']
         if file.filename == '':
-            return jsonify({'success': False, 'message': 'No file selected'}), 400
+            return jsonify({'error': 'No file selected'}), 400
         
         if not file.filename.lower().endswith('.pdf'):
-            return jsonify({'success': False, 'message': 'Only PDF files are allowed'}), 400
+            return jsonify({'error': 'Only PDF files allowed'}), 400
         
         # Generate unique filename
-        original_name = secure_filename(file.filename)
-        unique_filename = f"{uuid.uuid4()}_{original_name}"
-        s3_key = f"pdfs/{unique_filename}"
+        file_uuid = str(uuid.uuid4())
+        s3_key = f"pdfs/{folder_id}/{file_uuid}_{secure_filename(file.filename)}"
         
         # Upload to S3
-        file.seek(0)
-        if not upload_to_s3(file, s3_key):
-            return jsonify({'success': False, 'message': 'File upload failed'}), 500
-        
-        # Get file size
-        file.seek(0, 2)  # Seek to end
-        file_size = file.tell()
-        
-        # Save to database
-        pdf_file = PDFFile(
-            filename=unique_filename,
-            original_name=original_name,
-            s3_key=s3_key,
-            folder_id=folder_id,
-            file_size=file_size,
-            uploaded_by=current_user.id
-        )
-        
-        db.session.add(pdf_file)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'File uploaded successfully'})
+        if upload_to_s3(file, s3_key):
+            # Save file record to database
+            pdf_file = PDFFile(
+                filename=f"{file_uuid}_{secure_filename(file.filename)}",
+                original_name=file.filename,
+                s3_key=s3_key,
+                folder_id=folder_id,
+                file_size=len(file.read()),
+                uploaded_by=current_user.id
+            )
+            
+            db.session.add(pdf_file)
+            db.session.commit()
+            
+            return jsonify({'success': True, 'message': 'File uploaded successfully'})
+        else:
+            return jsonify({'error': 'Upload failed'}), 500
+    
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         db.session.rollback()
-        return jsonify({'success': False, 'message': 'Upload failed'}), 500
+        return jsonify({'error': 'Upload failed'}), 500
 
 @app.route('/api/files/<int:file_id>/download')
 @login_required
-def download_pdf(file_id):
+def download_file(file_id):
     try:
         pdf_file = PDFFile.query.get_or_404(file_id)
         
-        # Check if user has permission to view this folder
-        if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'view'):
+        # Check permission
+        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id):
             return jsonify({'error': 'Access denied'}), 403
         
-        # Get file content from S3
+        # Get file from S3
         file_content = get_pdf_from_s3(pdf_file.s3_key)
         if not file_content:
             return jsonify({'error': 'File not found'}), 404
         
-        return Response(
-            file_content,
-            mimetype='application/pdf',
-            headers={
-                'Content-Disposition': f'attachment; filename="{pdf_file.original_name}"'
-            }
+        return send_file(
+            io.BytesIO(file_content),
+            download_name=pdf_file.original_name,
+            as_attachment=True,
+            mimetype='application/pdf'
         )
+    
     except Exception as e:
         logger.error(f"Error downloading file: {e}")
         return jsonify({'error': 'Download failed'}), 500
 
-# Folder Permissions Management
+@app.route('/api/files/<int:file_id>', methods=['DELETE'])
+@login_required
+def delete_file(file_id):
+    try:
+        pdf_file = PDFFile.query.get_or_404(file_id)
+        
+        # Check permission
+        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'admin'):
+            return jsonify({'error': 'Delete permission required'}), 403
+        
+        # Delete from S3
+        if s3_client:
+            try:
+                s3_client.delete_object(Bucket=S3_BUCKET, Key=pdf_file.s3_key)
+            except Exception as e:
+                logger.error(f"Error deleting from S3: {e}")
+        
+        # Delete from database
+        db.session.delete(pdf_file)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'File deleted successfully'})
+    
+    except Exception as e:
+        logger.error(f"Error deleting file: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to delete file'}), 500
+
+# Permission Management Routes
 @app.route('/api/folders/<int:folder_id>/permissions', methods=['GET'])
 @login_required
 @admin_required
 def get_folder_permissions(folder_id):
     try:
-        permissions = db.session.query(
-            FolderPermission,
-            User.username
-        ).join(
-            User, FolderPermission.user_id == User.id
-        ).filter(
+        permissions = db.session.query(FolderPermission, User).join(User).filter(
             FolderPermission.folder_id == folder_id
         ).all()
         
         permissions_data = []
-        for permission, username in permissions:
+        for permission, user in permissions:
             permissions_data.append({
                 'id': permission.id,
                 'user_id': permission.user_id,
-                'username': username,
+                'username': user.username,
                 'permission_level': permission.permission_level,
                 'granted_at': permission.granted_at.isoformat()
             })
@@ -783,11 +769,24 @@ def get_folder_permissions(folder_id):
 def grant_folder_permission(folder_id):
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
         user_id = data.get('user_id')
         permission_level = data.get('permission_level', 'view')
         
         if not user_id:
             return jsonify({'success': False, 'message': 'User ID required'}), 400
+        
+        # Check if user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 400
+        
+        # Check if folder exists
+        folder = Folder.query.get(folder_id)
+        if not folder:
+            return jsonify({'success': False, 'message': 'Folder not found'}), 400
         
         # Check if permission already exists
         existing_permission = FolderPermission.query.filter_by(
@@ -796,12 +795,10 @@ def grant_folder_permission(folder_id):
         ).first()
         
         if existing_permission:
-            # Update existing permission
             existing_permission.permission_level = permission_level
             existing_permission.granted_by = current_user.id
             existing_permission.granted_at = datetime.utcnow()
         else:
-            # Create new permission
             permission = FolderPermission(
                 user_id=user_id,
                 folder_id=folder_id,
@@ -812,6 +809,7 @@ def grant_folder_permission(folder_id):
         
         db.session.commit()
         return jsonify({'success': True, 'message': 'Permission granted successfully'})
+    
     except Exception as e:
         logger.error(f"Error granting folder permission: {e}")
         db.session.rollback()
@@ -820,7 +818,7 @@ def grant_folder_permission(folder_id):
 @app.route('/api/permissions/<int:permission_id>', methods=['DELETE'])
 @login_required
 @admin_required
-def revoke_folder_permission(permission_id):
+def revoke_permission(permission_id):
     try:
         permission = FolderPermission.query.get_or_404(permission_id)
         db.session.delete(permission)
@@ -829,4 +827,57 @@ def revoke_folder_permission(permission_id):
     except Exception as e:
         logger.error(f"Error revoking permission: {e}")
         db.session.rollback()
-        return jsonify({'success': False, 'message':
+        return jsonify({'success': False, 'message': 'Failed to revoke permission'}), 500
+
+# API endpoint to get current user info
+@app.route('/api/user-info')
+@login_required
+def get_user_info():
+    try:
+        return jsonify({
+            'id': current_user.id,
+            'username': current_user.username,
+            'email': current_user.email,
+            'is_admin': current_user.is_admin
+        })
+    except Exception as e:
+        logger.error(f"Error getting user info: {e}")
+        return jsonify({'error': 'Failed to get user info'}), 500
+
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return jsonify({'error': 'Internal server error'}), 500
+
+# Initialize database
+def init_db():
+    """Initialize the database and create default admin user"""
+    try:
+        with app.app_context():
+            db.create_all()
+            
+            # Create default admin user if none exists
+            if not User.query.filter_by(is_admin=True).first():
+                admin_user = User(
+                    username='admin',
+                    email='admin@example.com',
+                    password_hash=generate_password_hash('admin123'),
+                    is_admin=True
+                )
+                db.session.add(admin_user)
+                db.session.commit()
+                logger.info("Default admin user created - username: admin, password: admin123")
+            
+            logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+
+if __name__ == '__main__':
+    init_db()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
