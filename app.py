@@ -12,7 +12,6 @@ import boto3
 from botocore.exceptions import NoCredentialsError
 from werkzeug.utils import secure_filename
 import uuid
-from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
@@ -49,83 +48,86 @@ def get_db_connection():
 
 def init_db():
     """Initialize the database with required tables"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Users table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username VARCHAR(255) UNIQUE NOT NULL,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            password_hash VARCHAR(255) NOT NULL,
-            is_admin BOOLEAN DEFAULT FALSE,
-            is_active BOOLEAN DEFAULT TRUE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Folders table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS folders (
-            id SERIAL PRIMARY KEY,
-            folder_name VARCHAR(255) NOT NULL,
-            folder_path VARCHAR(500),
-            description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            created_by INTEGER REFERENCES users(id)
-        )
-    ''')
-    
-    # Files table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS files (
-            id SERIAL PRIMARY KEY,
-            original_name VARCHAR(255) NOT NULL,
-            file_key VARCHAR(500) NOT NULL,
-            folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-            uploaded_by INTEGER NOT NULL REFERENCES users(id),
-            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            file_size BIGINT
-        )
-    ''')
-    
-    # User permissions table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS user_permissions (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-            permission_level VARCHAR(50) NOT NULL DEFAULT 'read',
-            granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            granted_by INTEGER REFERENCES users(id),
-            UNIQUE(user_id, folder_id)
-        )
-    ''')
-    
-    # Password reset tokens table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS password_reset_tokens (
-            id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            token VARCHAR(255) NOT NULL UNIQUE,
-            expires_at TIMESTAMP NOT NULL,
-            used BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Create default admin user if it doesn't exist
-    cursor.execute('SELECT * FROM users WHERE username = %s', ('admin',))
-    if not cursor.fetchone():
-        admin_password = hash_password('admin123')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Users table
         cursor.execute('''
-            INSERT INTO users (username, email, password_hash, is_admin, is_active)
-            VALUES (%s, %s, %s, %s, %s)
-        ''', ('admin', 'admin@example.com', admin_password, True, True))
-    
-    conn.commit()
-    conn.close()
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                username VARCHAR(255) UNIQUE NOT NULL,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password_hash VARCHAR(255) NOT NULL,
+                is_admin BOOLEAN DEFAULT FALSE,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Folders table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS folders (
+                id SERIAL PRIMARY KEY,
+                folder_name VARCHAR(255) NOT NULL,
+                folder_path VARCHAR(500),
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_by INTEGER REFERENCES users(id)
+            )
+        ''')
+        
+        # Files table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS files (
+                id SERIAL PRIMARY KEY,
+                original_name VARCHAR(255) NOT NULL,
+                file_key VARCHAR(500) NOT NULL,
+                folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                uploaded_by INTEGER NOT NULL REFERENCES users(id),
+                upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                file_size BIGINT
+            )
+        ''')
+        
+        # User permissions table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS user_permissions (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                folder_id INTEGER NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
+                permission_level VARCHAR(50) NOT NULL DEFAULT 'read',
+                granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                granted_by INTEGER REFERENCES users(id),
+                UNIQUE(user_id, folder_id)
+            )
+        ''')
+        
+        # Password reset tokens table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                token VARCHAR(255) NOT NULL UNIQUE,
+                expires_at TIMESTAMP NOT NULL,
+                used BOOLEAN DEFAULT FALSE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        
+        # Create default admin user if it doesn't exist
+        cursor.execute('SELECT * FROM users WHERE username = %s', ('admin',))
+        if not cursor.fetchone():
+            admin_password = hash_password('admin123')
+            cursor.execute('''
+                INSERT INTO users (username, email, password_hash, is_admin, is_active)
+                VALUES (%s, %s, %s, %s, %s)
+            ''', ('admin', 'admin@example.com', admin_password, True, True))
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Database initialization error: {e}")
 
 def hash_password(password):
     """Hash a password for storing"""
@@ -150,16 +152,19 @@ def require_admin(f):
         if 'user_id' not in session:
             return jsonify({'success': False, 'message': 'Authentication required'}), 401
         
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('SELECT is_admin FROM users WHERE id = %s', (session['user_id'],))
-        user = cursor.fetchone()
-        conn.close()
-        
-        if not user or not user[0]:
-            return jsonify({'success': False, 'message': 'Admin privileges required'}), 403
-        
-        return f(*args, **kwargs)
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute('SELECT is_admin FROM users WHERE id = %s', (session['user_id'],))
+            user = cursor.fetchone()
+            conn.close()
+            
+            if not user or not user[0]:
+                return jsonify({'success': False, 'message': 'Admin privileges required'}), 403
+            
+            return f(*args, **kwargs)
+        except Exception as e:
+            return jsonify({'success': False, 'message': 'Database error'}), 500
     decorated_function.__name__ = f.__name__
     return decorated_function
 
@@ -189,16 +194,19 @@ def index():
     if 'user_id' not in session:
         return redirect('/login')
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT is_admin FROM users WHERE id = %s', (session['user_id'],))
-    user = cursor.fetchone()
-    conn.close()
-    
-    if user and user[0]:  # is_admin
-        return redirect('/admin')
-    else:
-        return redirect('/dashboard')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_admin FROM users WHERE id = %s', (session['user_id'],))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if user and user[0]:  # is_admin
+            return redirect('/admin')
+        else:
+            return redirect('/dashboard')
+    except Exception as e:
+        return redirect('/login')
 
 @app.route('/login')
 def login_page():
@@ -363,8 +371,11 @@ def login_page():
 @require_admin
 def admin_dashboard():
     """Serve admin dashboard"""
-    with open('templates/admin_dashboard.html', 'r') as file:
-        return file.read()
+    try:
+        with open('templates/admin_dashboard.html', 'r') as file:
+            return file.read()
+    except FileNotFoundError:
+        return "Admin dashboard template not found. Please create templates/admin_dashboard.html"
 
 @app.route('/dashboard')
 @require_login
@@ -382,17 +393,20 @@ def login():
     if not username or not password:
         return jsonify({'success': False, 'message': 'Username and password required'})
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('SELECT id, password_hash, is_active FROM users WHERE username = %s', (username,))
-    user = cursor.fetchone()
-    conn.close()
-    
-    if user and user[2] and verify_password(user[1], password):
-        session['user_id'] = user[0]
-        return jsonify({'success': True})
-    else:
-        return jsonify({'success': False, 'message': 'Invalid credentials or account disabled'})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, password_hash, is_active FROM users WHERE username = %s', (username,))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if user and user[2] and verify_password(user[1], password):
+            session['user_id'] = user[0]
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'message': 'Invalid credentials or account disabled'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': 'Database error'})
 
 @app.route('/logout', methods=['POST', 'GET'])
 def logout():
@@ -416,6 +430,7 @@ def password_reset():
         user = cursor.fetchone()
         
         if not user:
+            conn.close()
             return jsonify({'success': False, 'message': 'Email address not found'})
         
         token = secrets.token_urlsafe(32)
@@ -456,16 +471,19 @@ def password_reset():
 @require_admin
 def get_users():
     """Get all users"""
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('''
-        SELECT id, username, email, is_admin, is_active, created_at
-        FROM users ORDER BY created_at DESC
-    ''')
-    users = cursor.fetchall()
-    conn.close()
-    
-    return jsonify({'success': True, 'users': [dict(user) for user in users]})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute('''
+            SELECT id, username, email, is_admin, is_active, created_at
+            FROM users ORDER BY created_at DESC
+        ''')
+        users = cursor.fetchall()
+        conn.close()
+        
+        return jsonify({'success': True, 'users': [dict(user) for user in users]})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/users', methods=['POST'])
 @require_admin
@@ -496,6 +514,8 @@ def create_user():
         return jsonify({'success': True, 'message': 'User created successfully'})
     except psycopg2.IntegrityError:
         return jsonify({'success': False, 'message': 'Username or email already exists'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
 @require_admin
@@ -533,36 +553,44 @@ def update_user(user_id):
         return jsonify({'success': True, 'message': 'User updated successfully'})
     except psycopg2.IntegrityError:
         return jsonify({'success': False, 'message': 'Username or email already exists'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
 @require_admin
 def delete_user(user_id):
     """Delete user"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('DELETE FROM users WHERE id = %s', (user_id,))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'User deleted successfully'})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('DELETE FROM users WHERE id = %s', (user_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/folders', methods=['GET'])
 @require_login
 def get_folders():
     """Get all folders"""
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('''
-        SELECT f.id, f.folder_name, f.folder_path, f.description, f.created_at,
-               CASE WHEN up.permission_level IS NOT NULL THEN up.permission_level ELSE 'none' END as permission_level
-        FROM folders f
-        LEFT JOIN user_permissions up ON f.id = up.folder_id AND up.user_id = %s
-        ORDER BY f.created_at DESC
-    ''', (session['user_id'],))
-    folders = cursor.fetchall()
-    conn.close()
-    
-    return jsonify({'success': True, 'folders': [dict(folder) for folder in folders]})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute('''
+            SELECT f.id, f.folder_name, f.folder_path, f.description, f.created_at,
+                   CASE WHEN up.permission_level IS NOT NULL THEN up.permission_level ELSE 'none' END as permission_level
+            FROM folders f
+            LEFT JOIN user_permissions up ON f.id = up.folder_id AND up.user_id = %s
+            ORDER BY f.created_at DESC
+        ''', (session['user_id'],))
+        folders = cursor.fetchall()
+        conn.close()
+        
+        return jsonify({'success': True, 'folders': [dict(folder) for folder in folders]})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/create_folder', methods=['POST'])
 @require_admin
@@ -576,16 +604,19 @@ def create_folder():
     if not folder_name:
         return jsonify({'success': False, 'message': 'Folder name required'})
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO folders (folder_name, folder_path, description, created_by)
-        VALUES (%s, %s, %s, %s)
-    ''', (folder_name, folder_path, description, session['user_id']))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'Folder created successfully'})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO folders (folder_name, folder_path, description, created_by)
+            VALUES (%s, %s, %s, %s)
+        ''', (folder_name, folder_path, description, session['user_id']))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Folder created successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/folders/<int:folder_id>', methods=['PUT'])
 @require_admin
@@ -598,16 +629,19 @@ def update_folder(folder_id):
     if not folder_name:
         return jsonify({'success': False, 'message': 'Folder name required'})
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE folders SET folder_name = %s, folder_path = %s
-        WHERE id = %s
-    ''', (folder_name, folder_path, folder_id))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'Folder updated successfully'})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE folders SET folder_name = %s, folder_path = %s
+            WHERE id = %s
+        ''', (folder_name, folder_path, folder_id))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Folder updated successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/folders/<int:folder_id>', methods=['DELETE'])
 @require_admin
@@ -639,22 +673,25 @@ def delete_folder(folder_id):
 @require_login
 def get_files():
     """Get all files user has access to"""
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('''
-        SELECT f.id, f.original_name, f.upload_date, f.file_size,
-               fo.folder_name, u.username as uploaded_by
-        FROM files f
-        JOIN folders fo ON f.folder_id = fo.id
-        JOIN users u ON f.uploaded_by = u.id
-        LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = %s
-        WHERE up.permission_level IS NOT NULL OR u.id = %s
-        ORDER BY f.upload_date DESC
-    ''', (session['user_id'], session['user_id']))
-    files = cursor.fetchall()
-    conn.close()
-    
-    return jsonify({'success': True, 'files': [dict(file) for file in files]})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute('''
+            SELECT f.id, f.original_name, f.upload_date, f.file_size,
+                   fo.folder_name, u.username as uploaded_by
+            FROM files f
+            JOIN folders fo ON f.folder_id = fo.id
+            JOIN users u ON f.uploaded_by = u.id
+            LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = %s
+            WHERE up.permission_level IS NOT NULL OR u.id = %s
+            ORDER BY f.upload_date DESC
+        ''', (session['user_id'], session['user_id']))
+        files = cursor.fetchall()
+        conn.close()
+        
+        return jsonify({'success': True, 'files': [dict(file) for file in files]})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/files/<int:file_id>', methods=['DELETE'])
 @require_login
@@ -666,262 +703,6 @@ def delete_file(file_id):
         
         cursor.execute('SELECT file_key FROM files WHERE id = %s', (file_id,))
         file = cursor.fetchone()
-    conn.close()
-    
-    if not file:
-        return jsonify({'error': 'File not found or access denied'}), 404
-    
-    file_key, original_name, folder_id = file
-    
-    if s3_client:
-        try:
-            url = s3_client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': S3_BUCKET, 'Key': file_key},
-                ExpiresIn=3600
-            )
-            return redirect(url)
-        except Exception as e:
-            return jsonify({'error': 'File access error'}), 500
-    else:
-        return jsonify({'error': 'File storage not configured'}), 500
-
-@app.route('/download/<int:file_id>')
-@require_login
-def download_file(file_id):
-    """Download a file"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT f.file_key, f.original_name, fo.id
-        FROM files f
-        JOIN folders fo ON f.folder_id = fo.id
-        LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = %s
-        WHERE f.id = %s AND (up.permission_level IS NOT NULL OR f.uploaded_by = %s)
-    ''', (session['user_id'], file_id, session['user_id']))
-    file = cursor.fetchone()
-    conn.close()
-    
-    if not file:
-        return jsonify({'error': 'File not found or access denied'}), 404
-    
-    file_key, original_name, folder_id = file
-    
-    if s3_client:
-        try:
-            url = s3_client.generate_presigned_url(
-                'get_object',
-                Params={
-                    'Bucket': S3_BUCKET, 
-                    'Key': file_key,
-                    'ResponseContentDisposition': f'attachment; filename="{original_name}"'
-                },
-                ExpiresIn=3600
-            )
-            return redirect(url)
-        except Exception as e:
-            return jsonify({'error': 'File download error'}), 500
-    else:
-        return jsonify({'error': 'File storage not configured'}), 500
-
-@app.route('/api/permissions', methods=['POST'])
-@require_admin
-def grant_permission():
-    """Grant folder permission to user"""
-    data = request.get_json()
-    user_id = data.get('user_id')
-    folder_id = data.get('folder_id')
-    permission_level = data.get('permission_level', 'read')
-    
-    if not all([user_id, folder_id]):
-        return jsonify({'success': False, 'message': 'User ID and Folder ID required'})
-    
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            INSERT INTO user_permissions 
-            (user_id, folder_id, permission_level, granted_by)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (user_id, folder_id) 
-            DO UPDATE SET permission_level = EXCLUDED.permission_level,
-                         granted_by = EXCLUDED.granted_by,
-                         granted_at = CURRENT_TIMESTAMP
-        ''', (user_id, folder_id, permission_level, session['user_id']))
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Permission granted successfully'})
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-@app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
-@require_admin
-def revoke_permission(user_id, folder_id):
-    """Revoke folder permission from user"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        DELETE FROM user_permissions 
-        WHERE user_id = %s AND folder_id = %s
-    ''', (user_id, folder_id))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({'success': True, 'message': 'Permission revoked successfully'})
-
-@app.route('/reset-password')
-def reset_password_page():
-    """Serve password reset page"""
-    token = request.args.get('token')
-    if not token:
-        return "Invalid reset link", 400
-    
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT prt.user_id, u.username 
-        FROM password_reset_tokens prt
-        JOIN users u ON prt.user_id = u.id
-        WHERE prt.token = %s AND prt.expires_at > NOW() AND prt.used = FALSE
-    ''', (token,))
-    token_data = cursor.fetchone()
-    conn.close()
-    
-    if not token_data:
-        return "Invalid or expired reset link", 400
-    
-    return f'''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Reset Password - PDF Management</title>
-        <style>
-            body {{ font-family: Arial, sans-serif; background: #f5f5f5; }}
-            .reset-container {{ max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
-            .form-group {{ margin-bottom: 20px; }}
-            label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
-            input {{ width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }}
-            button {{ width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
-            button:hover {{ background: #0056b3; }}
-            .error {{ color: red; margin-top: 10px; }}
-            .success {{ color: green; margin-top: 10px; }}
-        </style>
-    </head>
-    <body>
-        <div class="reset-container">
-            <h2>Reset Password</h2>
-            <p>Reset password for: <strong>{token_data[1]}</strong></p>
-            <form id="resetForm">
-                <input type="hidden" id="token" value="{token}">
-                <div class="form-group">
-                    <label for="new_password">New Password:</label>
-                    <input type="password" id="new_password" name="new_password" required minlength="6">
-                </div>
-                <div class="form-group">
-                    <label for="confirm_password">Confirm Password:</label>
-                    <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
-                </div>
-                <button type="submit">Reset Password</button>
-            </form>
-            <div class="error" id="error-message"></div>
-            <div class="success" id="success-message"></div>
-        </div>
-
-        <script>
-            document.getElementById('resetForm').addEventListener('submit', async (e) => {{
-                e.preventDefault();
-                
-                const token = document.getElementById('token').value;
-                const newPassword = document.getElementById('new_password').value;
-                const confirmPassword = document.getElementById('confirm_password').value;
-                
-                document.getElementById('error-message').textContent = '';
-                document.getElementById('success-message').textContent = '';
-                
-                if (newPassword !== confirmPassword) {{
-                    document.getElementById('error-message').textContent = 'Passwords do not match';
-                    return;
-                }}
-                
-                if (newPassword.length < 6) {{
-                    document.getElementById('error-message').textContent = 'Password must be at least 6 characters';
-                    return;
-                }}
-                
-                try {{
-                    const response = await fetch('/api/reset-password', {{
-                        method: 'POST',
-                        headers: {{ 'Content-Type': 'application/json' }},
-                        body: JSON.stringify({{ token: token, new_password: newPassword }})
-                    }});
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {{
-                        document.getElementById('success-message').textContent = 'Password reset successfully! You can now login with your new password.';
-                        document.getElementById('resetForm').style.display = 'none';
-                        setTimeout(() => {{
-                            window.location.href = '/login';
-                        }}, 3000);
-                    }} else {{
-                        document.getElementById('error-message').textContent = data.message || 'Error resetting password';
-                    }}
-                }} catch (error) {{
-                    console.error('Reset error:', error);
-                    document.getElementById('error-message').textContent = 'Error resetting password. Please try again.';
-                }}
-            }});
-        </script>
-    </body>
-    </html>
-    '''
-
-@app.route('/api/reset-password', methods=['POST'])
-def reset_password_confirm():
-    """Confirm password reset"""
-    try:
-        data = request.get_json()
-        token = data.get('token')
-        new_password = data.get('new_password')
-        
-        if not token or not new_password:
-            return jsonify({'success': False, 'message': 'Token and new password required'})
-        
-        if len(new_password) < 6:
-            return jsonify({'success': False, 'message': 'Password must be at least 6 characters'})
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT user_id FROM password_reset_tokens 
-            WHERE token = %s AND expires_at > NOW() AND used = FALSE
-        ''', (token,))
-        token_data = cursor.fetchone()
-        
-        if not token_data:
-            conn.close()
-            return jsonify({'success': False, 'message': 'Invalid or expired token'})
-        
-        user_id = token_data[0]
-        
-        password_hash = hash_password(new_password)
-        cursor.execute('UPDATE users SET password_hash = %s WHERE id = %s', (password_hash, user_id))
-        
-        cursor.execute('UPDATE password_reset_tokens SET used = TRUE WHERE token = %s', (token,))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'Password reset successfully'})
-        
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-if __name__ == '__main__':
-    init_db()
-    app.run(host='0.0.0.0', port=PORT, debug=(FLASK_ENV == 'development'))one()
         
         if file:
             if s3_client:
@@ -942,18 +723,21 @@ if __name__ == '__main__':
 @require_login
 def get_folder_files(folder_id):
     """Get files in a specific folder"""
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cursor.execute('''
-        SELECT f.id, f.original_name, f.upload_date, f.file_size
-        FROM files f
-        WHERE f.folder_id = %s
-        ORDER BY f.upload_date DESC
-    ''', (folder_id,))
-    files = cursor.fetchall()
-    conn.close()
-    
-    return jsonify({'success': True, 'files': [dict(file) for file in files]})
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute('''
+            SELECT f.id, f.original_name, f.upload_date, f.file_size
+            FROM files f
+            WHERE f.folder_id = %s
+            ORDER BY f.upload_date DESC
+        ''', (folder_id,))
+        files = cursor.fetchall()
+        conn.close()
+        
+        return jsonify({'success': True, 'files': [dict(file) for file in files]})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/upload/<int:folder_id>', methods=['POST'])
 @require_login
@@ -1005,13 +789,281 @@ def upload_files(folder_id):
 @require_login
 def view_file(file_id):
     """View/serve a file"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT f.file_key, f.original_name, fo.id
-        FROM files f
-        JOIN folders fo ON f.folder_id = fo.id
-        LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = %s
-        WHERE f.id = %s AND (up.permission_level IS NOT NULL OR f.uploaded_by = %s)
-    ''', (session['user_id'], file_id, session['user_id']))
-    file = cursor.fetch
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT f.file_key, f.original_name, fo.id
+            FROM files f
+            JOIN folders fo ON f.folder_id = fo.id
+            LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = %s
+            WHERE f.id = %s AND (up.permission_level IS NOT NULL OR f.uploaded_by = %s)
+        ''', (session['user_id'], file_id, session['user_id']))
+        file = cursor.fetchone()
+        conn.close()
+        
+        if not file:
+            return jsonify({'error': 'File not found or access denied'}), 404
+        
+        file_key, original_name, folder_id = file
+        
+        if s3_client:
+            try:
+                url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': S3_BUCKET, 'Key': file_key},
+                    ExpiresIn=3600
+                )
+                return redirect(url)
+            except Exception as e:
+                return jsonify({'error': 'File access error'}), 500
+        else:
+            return jsonify({'error': 'File storage not configured'}), 500
+    except Exception as e:
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/download/<int:file_id>')
+@require_login
+def download_file(file_id):
+    """Download a file"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT f.file_key, f.original_name, fo.id
+            FROM files f
+            JOIN folders fo ON f.folder_id = fo.id
+            LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = %s
+            WHERE f.id = %s AND (up.permission_level IS NOT NULL OR f.uploaded_by = %s)
+        ''', (session['user_id'], file_id, session['user_id']))
+        file = cursor.fetchone()
+        conn.close()
+        
+        if not file:
+            return jsonify({'error': 'File not found or access denied'}), 404
+        
+        file_key, original_name, folder_id = file
+        
+        if s3_client:
+            try:
+                url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': S3_BUCKET, 
+                        'Key': file_key,
+                        'ResponseContentDisposition': f'attachment; filename="{original_name}"'
+                    },
+                    ExpiresIn=3600
+                )
+                return redirect(url)
+            except Exception as e:
+                return jsonify({'error': 'File download error'}), 500
+        else:
+            return jsonify({'error': 'File storage not configured'}), 500
+    except Exception as e:
+        return jsonify({'error': 'Database error'}), 500
+
+@app.route('/api/permissions', methods=['POST'])
+@require_admin
+def grant_permission():
+    """Grant folder permission to user"""
+    data = request.get_json()
+    user_id = data.get('user_id')
+    folder_id = data.get('folder_id')
+    permission_level = data.get('permission_level', 'read')
+    
+    if not all([user_id, folder_id]):
+        return jsonify({'success': False, 'message': 'User ID and Folder ID required'})
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO user_permissions 
+            (user_id, folder_id, permission_level, granted_by)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, folder_id) 
+            DO UPDATE SET permission_level = EXCLUDED.permission_level,
+                         granted_by = EXCLUDED.granted_by,
+                         granted_at = CURRENT_TIMESTAMP
+        ''', (user_id, folder_id, permission_level, session['user_id']))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Permission granted successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
+@require_admin
+def revoke_permission(user_id, folder_id):
+    """Revoke folder permission from user"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            DELETE FROM user_permissions 
+            WHERE user_id = %s AND folder_id = %s
+        ''', (user_id, folder_id))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Permission revoked successfully'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/reset-password')
+def reset_password_page():
+    """Serve password reset page"""
+    token = request.args.get('token')
+    if not token:
+        return "Invalid reset link", 400
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT prt.user_id, u.username 
+            FROM password_reset_tokens prt
+            JOIN users u ON prt.user_id = u.id
+            WHERE prt.token = %s AND prt.expires_at > NOW() AND prt.used = FALSE
+        ''', (token,))
+        token_data = cursor.fetchone()
+        conn.close()
+        
+        if not token_data:
+            return "Invalid or expired reset link", 400
+        
+        return f'''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Reset Password - PDF Management</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; background: #f5f5f5; }}
+                .reset-container {{ max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+                .form-group {{ margin-bottom: 20px; }}
+                label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
+                input {{ width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }}
+                button {{ width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
+                button:hover {{ background: #0056b3; }}
+                .error {{ color: red; margin-top: 10px; }}
+                .success {{ color: green; margin-top: 10px; }}
+            </style>
+        </head>
+        <body>
+            <div class="reset-container">
+                <h2>Reset Password</h2>
+                <p>Reset password for: <strong>{token_data[1]}</strong></p>
+                <form id="resetForm">
+                    <input type="hidden" id="token" value="{token}">
+                    <div class="form-group">
+                        <label for="new_password">New Password:</label>
+                        <input type="password" id="new_password" name="new_password" required minlength="6">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm_password">Confirm Password:</label>
+                        <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
+                    </div>
+                    <button type="submit">Reset Password</button>
+                </form>
+                <div class="error" id="error-message"></div>
+                <div class="success" id="success-message"></div>
+            </div>
+
+            <script>
+                document.getElementById('resetForm').addEventListener('submit', async (e) => {{
+                    e.preventDefault();
+                    
+                    const token = document.getElementById('token').value;
+                    const newPassword = document.getElementById('new_password').value;
+                    const confirmPassword = document.getElementById('confirm_password').value;
+                    
+                    document.getElementById('error-message').textContent = '';
+                    document.getElementById('success-message').textContent = '';
+                    
+                    if (newPassword !== confirmPassword) {{
+                        document.getElementById('error-message').textContent = 'Passwords do not match';
+                        return;
+                    }}
+                    
+                    if (newPassword.length < 6) {{
+                        document.getElementById('error-message').textContent = 'Password must be at least 6 characters';
+                        return;
+                    }}
+                    
+                    try {{
+                        const response = await fetch('/api/reset-password', {{
+                            method: 'POST',
+                            headers: {{ 'Content-Type': 'application/json' }},
+                            body: JSON.stringify({{ token: token, new_password: newPassword }})
+                        }});
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {{
+                            document.getElementById('success-message').textContent = 'Password reset successfully! You can now login with your new password.';
+                            document.getElementById('resetForm').style.display = 'none';
+                            setTimeout(() => {{
+                                window.location.href = '/login';
+                            }}, 3000);
+                        }} else {{
+                            document.getElementById('error-message').textContent = data.message || 'Error resetting password';
+                        }}
+                    }} catch (error) {{
+                        console.error('Reset error:', error);
+                        document.getElementById('error-message').textContent = 'Error resetting password. Please try again.';
+                    }}
+                }});
+            </script>
+        </body>
+        </html>
+        '''
+    except Exception as e:
+        return "Database error", 500
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password_confirm():
+    """Confirm password reset"""
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        new_password = data.get('new_password')
+        
+        if not token or not new_password:
+            return jsonify({'success': False, 'message': 'Token and new password required'})
+        
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'message': 'Password must be at least 6 characters'})
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT user_id FROM password_reset_tokens 
+            WHERE token = %s AND expires_at > NOW() AND used = FALSE
+        ''', (token,))
+        token_data = cursor.fetchone()
+        
+        if not token_data:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Invalid or expired token'})
+        
+        user_id = token_data[0]
+        
+        password_hash = hash_password(new_password)
+        cursor.execute('UPDATE users SET password_hash = %s WHERE id = %s', (password_hash, user_id))
+        
+        cursor.execute('UPDATE password_reset_tokens SET used = TRUE WHERE token = %s', (token,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Password reset successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+if __name__ == '__main__':
+    init_db()
+    app.run(host='0.0.0.0', port=PORT, debug=(FLASK_ENV == 'development'))
