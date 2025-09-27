@@ -824,26 +824,33 @@
         }
 
         async function handleFolderFiles(files) {
-            const pdfFiles = Array.from(files).filter(file => 
-                file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-            );
+            // Filter for PDF files in the root folder only (ignore subfolders)
+            const pdfFiles = Array.from(files).filter(file => {
+                const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                
+                // Check if file is in root folder (no subdirectories)
+                if (file.webkitRelativePath) {
+                    const pathParts = file.webkitRelativePath.split('/');
+                    // Only include files that are directly in the main folder (pathParts.length === 2: folder/file.pdf)
+                    return isPDF && pathParts.length === 2;
+                }
+                
+                return isPDF;
+            });
 
             if (pdfFiles.length === 0) {
-                alert('No PDF files found in the selected folder(s).');
+                alert('No PDF files found in the main folder. Only PDFs in the root level of the selected folder will be processed (subfolders are ignored).');
                 return;
             }
 
-            // Group files by their folder path
+            // Get the main folder name from the first file
+            const mainFolderName = pdfFiles.length > 0 && pdfFiles[0].webkitRelativePath 
+                ? pdfFiles[0].webkitRelativePath.split('/')[0] 
+                : 'Root';
+
+            // Group all files under the main folder name
             const folderGroups = {};
-            pdfFiles.forEach(file => {
-                const pathParts = file.webkitRelativePath ? file.webkitRelativePath.split('/') : [file.name];
-                const folderPath = pathParts.length > 1 ? pathParts.slice(0, -1).join('/') : 'Root';
-                
-                if (!folderGroups[folderPath]) {
-                    folderGroups[folderPath] = [];
-                }
-                folderGroups[folderPath].push(file);
-            });
+            folderGroups[mainFolderName] = pdfFiles;
 
             const statusDiv = document.getElementById('upload-status');
             const progressBar = document.getElementById('upload-progress-bar');
