@@ -446,7 +446,7 @@
             <div class="folder-upload-area" id="folder-upload-area" style="display: none;">
                 <div>📁 Drag and drop folders with PDFs here</div>
                 <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
-                    System will automatically scan folders for PDF files and add them
+                    System will automatically scan folders and all subfolders for PDF files
                 </div>
                 <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;">
                 <button class="btn btn-primary" style="margin-top: 1rem;" onclick="document.getElementById('folder-input').click()">
@@ -582,7 +582,28 @@
         </div>
     </div>
 
-    <!-- User Permissions Modal (Updated) -->
+    <!-- Rename Folder Modal -->
+    <div id="rename-folder-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Rename Folder</h3>
+                <button class="close-modal" onclick="closeModal('rename-folder-modal')">&times;</button>
+            </div>
+            <form id="rename-folder-form">
+                <input type="hidden" id="rename-folder-id">
+                <div class="form-group">
+                    <label for="new_folder_name">New Folder Name</label>
+                    <input type="text" id="new_folder_name" name="new_folder_name" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_folder_path">New Folder Path (Optional)</label>
+                    <input type="text" id="new_folder_path" name="new_folder_path" placeholder="e.g., /documents/reports">
+                    <small style="color: #666;">Leave blank to keep existing path</small>
+                </div>
+                <button type="submit" class="btn btn-success">Rename Folder</button>
+            </form>
+        </div>
+    </div>
     <div id="permissions-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -824,31 +845,36 @@
         }
 
         async function handleFolderFiles(files) {
-            // Filter for PDF files in the root folder only (ignore subfolders)
+            // Filter for PDF files from all levels (including subfolders)
             const pdfFiles = Array.from(files).filter(file => {
                 const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-                
-                // Check if file is in root folder (no subdirectories)
-                if (file.webkitRelativePath) {
-                    const pathParts = file.webkitRelativePath.split('/');
-                    // Only include files that are directly in the main folder (pathParts.length === 2: folder/file.pdf)
-                    return isPDF && pathParts.length === 2;
-                }
-                
                 return isPDF;
             });
 
             if (pdfFiles.length === 0) {
-                alert('No PDF files found in the main folder. Only PDFs in the root level of the selected folder will be processed (subfolders are ignored).');
+                alert('No PDF files found in the selected folder(s) and their subfolders.');
                 return;
             }
 
-            // Get the main folder name from the first file
-            const mainFolderName = pdfFiles.length > 0 && pdfFiles[0].webkitRelativePath 
-                ? pdfFiles[0].webkitRelativePath.split('/')[0] 
-                : 'Root';
+            // Get the main folder name from the first file, or use a default name
+            let mainFolderName = 'UploadedFolder';
+            
+            if (pdfFiles.length > 0 && pdfFiles[0].webkitRelativePath) {
+                const pathParts = pdfFiles[0].webkitRelativePath.split('/');
+                if (pathParts.length >= 1) {
+                    mainFolderName = pathParts[0];
+                }
+            } else {
+                // If no webkitRelativePath, ask user for folder name
+                mainFolderName = prompt('Enter a name for the folder:', 'NewFolder');
+                if (!mainFolderName || mainFolderName.trim() === '') {
+                    alert('Folder name is required');
+                    return;
+                }
+                mainFolderName = mainFolderName.trim();
+            }
 
-            // Group all files under the main folder name
+            // Group all files under the main folder name (including files from subfolders)
             const folderGroups = {};
             folderGroups[mainFolderName] = pdfFiles;
 
@@ -1203,6 +1229,7 @@
                                         <td>${folder.permission_level}</td>
                                         <td>
                                             <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
+                                            <button class="btn btn-warning" onclick="renameFolder(${folder.id}, '${folder.folder_name}')">Rename</button>
                                             <button class="btn btn-danger" onclick="deleteFolder(${folder.id}, '${folder.folder_name}')">Delete</button>
                                         </td>
                                     </tr>
@@ -1269,12 +1296,19 @@
             if (!confirm(`Are you sure you want to delete ${selectedFolders.size} folder(s)? This will also delete all files in these folders.`)) return;
             
             let deletedCount = 0;
-            for (const folderId of selectedFolders) {
+            const folderIds = Array.from(selectedFolders);
+            
+            for (const folderId of folderIds) {
                 try {
                     const response = await fetch(`/api/folders/${folderId}`, {
                         method: 'DELETE'
                     });
-                    if (response.ok) deletedCount++;
+                    const result = await response.json();
+                    if (result.success) {
+                        deletedCount++;
+                    } else {
+                        console.error(`Error deleting folder ${folderId}:`, result.message);
+                    }
                 } catch (error) {
                     console.error(`Error deleting folder ${folderId}:`, error);
                 }
@@ -1282,7 +1316,21 @@
             
             alert(`Successfully deleted ${deletedCount} folder(s)`);
             selectedFolders.clear();
+            
+            // Update checkboxes
+            document.getElementById('select-all-folders').checked = false;
+            const tableSelectAll = document.getElementById('select-all-folders-table');
+            if (tableSelectAll) tableSelectAll.checked = false;
+            
             loadFolders();
+        }
+
+        // Rename folder function
+        function renameFolder(folderId, currentName) {
+            document.getElementById('rename-folder-id').value = folderId;
+            document.getElementById('new_folder_name').value = currentName;
+            document.getElementById('new_folder_path').value = '';
+            document.getElementById('rename-folder-modal').style.display = 'block';
         }
 
         async function deleteFolder(folderId, folderName) {
@@ -1777,6 +1825,56 @@
                 alert('Error creating folder');
             }
         });
+
+        // Handle rename folder form submission
+        document.getElementById('rename-folder-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const folderId = document.getElementById('rename-folder-id').value;
+            const newName = document.getElementById('new_folder_name').value.trim();
+            const newPath = document.getElementById('new_folder_path').value.trim();
+            
+            if (!newName) {
+                alert('Folder name is required');
+                return;
+            }
+            
+            const folderData = {
+                folder_name: newName,
+                folder_path: newPath || null
+            };
+
+            try {
+                const response = await fetch(`/api/folders/${folderId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(folderData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('rename-folder-modal');
+                    loadFolders();
+                    alert('Folder renamed successfully!');
+                } else {
+                    alert('Error renaming folder: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error renaming folder:', error);
+                alert('Error renaming folder');
+            }
+        });
+
+        // Export selected folders function
+        async function exportSelectedFolders() {
+            if (selectedFolders.size === 0) {
+                alert('Please select folders to export');
+                return;
+            }
+            
+            alert(`Export functionality for ${selectedFolders.size} folder(s) will be implemented soon.`);
+        }
 
         // Handle permissions form submission
         document.getElementById('permissions-form').addEventListener('submit', async function(e) {
