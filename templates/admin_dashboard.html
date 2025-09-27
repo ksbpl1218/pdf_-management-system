@@ -1296,6 +1296,7 @@
             if (!confirm(`Are you sure you want to delete ${selectedFolders.size} folder(s)? This will also delete all files in these folders.`)) return;
             
             let deletedCount = 0;
+            let errorCount = 0;
             const folderIds = Array.from(selectedFolders);
             
             for (const folderId of folderIds) {
@@ -1303,18 +1304,31 @@
                     const response = await fetch(`/api/folders/${folderId}`, {
                         method: 'DELETE'
                     });
-                    const result = await response.json();
-                    if (result.success) {
-                        deletedCount++;
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result && result.success !== false) {
+                            deletedCount++;
+                        } else {
+                            console.error(`Server error deleting folder ${folderId}:`, result?.message || 'Unknown error');
+                            errorCount++;
+                        }
                     } else {
-                        console.error(`Error deleting folder ${folderId}:`, result.message);
+                        console.error(`HTTP error deleting folder ${folderId}:`, response.status, response.statusText);
+                        errorCount++;
                     }
                 } catch (error) {
-                    console.error(`Error deleting folder ${folderId}:`, error);
+                    console.error(`Network error deleting folder ${folderId}:`, error);
+                    errorCount++;
                 }
             }
             
-            alert(`Successfully deleted ${deletedCount} folder(s)`);
+            if (deletedCount > 0) {
+                alert(`Successfully deleted ${deletedCount} folder(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
+            } else {
+                alert(`Failed to delete folders. Please check if the server is running and try again.`);
+            }
+            
             selectedFolders.clear();
             
             // Update checkboxes
@@ -1322,15 +1336,9 @@
             const tableSelectAll = document.getElementById('select-all-folders-table');
             if (tableSelectAll) tableSelectAll.checked = false;
             
-            loadFolders();
-        }
-
-        // Rename folder function
-        function renameFolder(folderId, currentName) {
-            document.getElementById('rename-folder-id').value = folderId;
-            document.getElementById('new_folder_name').value = currentName;
-            document.getElementById('new_folder_path').value = '';
-            document.getElementById('rename-folder-modal').style.display = 'block';
+            // Reload both folders and files to show updated data
+            await loadFolders();
+            await loadFiles();
         }
 
         async function deleteFolder(folderId, folderName) {
@@ -1340,17 +1348,23 @@
                 const response = await fetch(`/api/folders/${folderId}`, {
                     method: 'DELETE'
                 });
-                const result = await response.json();
                 
-                if (result.success) {
-                    alert('Folder deleted successfully!');
-                    loadFolders();
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result && result.success !== false) {
+                        alert('Folder deleted successfully!');
+                        // Reload both folders and files to show updated data
+                        await loadFolders();
+                        await loadFiles();
+                    } else {
+                        alert('Error deleting folder: ' + (result?.message || 'Server returned an error'));
+                    }
                 } else {
-                    alert('Error deleting folder: ' + result.message);
+                    alert(`Error deleting folder: HTTP ${response.status} - ${response.statusText}`);
                 }
             } catch (error) {
                 console.error('Error deleting folder:', error);
-                alert('Error deleting folder');
+                alert('Error deleting folder: Network error or server is not responding');
             }
         }
 
@@ -1607,37 +1621,7 @@
             selectedFiles.clear();
         }
 
-        async function deleteSelectedFiles() {
-            if (selectedFiles.size === 0) {
-                alert('Please select files to delete');
-                return;
-            }
-            
-            if (!confirm(`Are you sure you want to delete ${selectedFiles.size} file(s)?`)) return;
-            
-            let deletedCount = 0;
-            for (const fileId of selectedFiles) {
-                try {
-                    const response = await fetch(`/api/files/${fileId}`, {
-                        method: 'DELETE'
-                    });
-                    if (response.ok) deletedCount++;
-                } catch (error) {
-                    console.error(`Error deleting file ${fileId}:`, error);
-                }
-            }
-            
-            alert(`Successfully deleted ${deletedCount} file(s)`);
-            selectedFiles.clear();
-            
-            // Reload the appropriate view
-            if (currentViewingFolderId) {
-                const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
-                viewFolderFiles(currentViewingFolderId, folderName);
-            } else {
-                loadFiles();
-            }
-        }
+        // Remove the old deleteSelectedFiles function since we updated it above
 
         async function deleteSingleFile(fileId) {
             if (!confirm('Are you sure you want to delete this file?')) return;
@@ -1935,6 +1919,14 @@
             }
         }
 
+        // Rename folder function
+        function renameFolder(folderId, currentName) {
+            document.getElementById('rename-folder-id').value = folderId;
+            document.getElementById('new_folder_name').value = currentName;
+            document.getElementById('new_folder_path').value = '';
+            document.getElementById('rename-folder-modal').style.display = 'block';
+        }
+
         async function deleteFile(fileId) {
             if (!confirm('Are you sure you want to delete this file?')) return;
             
@@ -1942,17 +1934,83 @@
                 const response = await fetch(`/api/files/${fileId}`, {
                     method: 'DELETE'
                 });
-                const result = await response.json();
                 
-                if (result.success) {
-                    loadFiles();
-                    alert('File deleted successfully!');
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result && result.success !== false) {
+                        alert('File deleted successfully!');
+                        // Reload both files and folders to show updated data
+                        await loadFiles();
+                        await loadFolders();
+                    } else {
+                        alert('Error deleting file: ' + (result?.message || 'Server returned an error'));
+                    }
                 } else {
-                    alert('Error deleting file');
+                    alert(`Error deleting file: HTTP ${response.status} - ${response.statusText}`);
                 }
             } catch (error) {
                 console.error('Error deleting file:', error);
-                alert('Error deleting file');
+                alert('Error deleting file: Network error or server is not responding');
+            }
+        }
+
+        async function deleteSelectedFiles() {
+            if (selectedFiles.size === 0) {
+                alert('Please select files to delete');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete ${selectedFiles.size} file(s)?`)) return;
+            
+            let deletedCount = 0;
+            let errorCount = 0;
+            const fileIds = Array.from(selectedFiles);
+            
+            for (const fileId of fileIds) {
+                try {
+                    const response = await fetch(`/api/files/${fileId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result && result.success !== false) {
+                            deletedCount++;
+                        } else {
+                            console.error(`Server error deleting file ${fileId}:`, result?.message || 'Unknown error');
+                            errorCount++;
+                        }
+                    } else {
+                        console.error(`HTTP error deleting file ${fileId}:`, response.status, response.statusText);
+                        errorCount++;
+                    }
+                } catch (error) {
+                    console.error(`Network error deleting file ${fileId}:`, error);
+                    errorCount++;
+                }
+            }
+            
+            if (deletedCount > 0) {
+                alert(`Successfully deleted ${deletedCount} file(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
+            } else {
+                alert(`Failed to delete files. Please check if the server is running and try again.`);
+            }
+            
+            selectedFiles.clear();
+            
+            // Update checkboxes
+            document.getElementById('select-all-files').checked = false;
+            const tableSelectAll = document.getElementById('select-all-files-table');
+            if (tableSelectAll) tableSelectAll.checked = false;
+            
+            // Reload the appropriate view
+            if (currentViewingFolderId) {
+                const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
+                viewFolderFiles(currentViewingFolderId, folderName);
+            } else {
+                // Reload both files and folders to show updated data
+                await loadFiles();
+                await loadFolders();
             }
         }
 
