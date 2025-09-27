@@ -6,3 +6,17 @@ python-dotenv==1.0.0
 boto3==1.28.85
 gunicorn==21.2.0
 psycopg2-binary==2.9.9
+blinker==1.9.0
+MarkupSafe==3.0.2
+Jinja2==3.1.6
+itsdangerous==2.2.0
+click==8.3.0
+greenlet==3.2.4
+SQLAlchemy==2.0.43
+typing-extensions==4.15.0
+urllib3==2.0.7
+six==1.17.0
+python-dateutil==2.9.0.post0
+s3transfer==0.7.0
+jmespath==1.0.1
+packaging==25.0
