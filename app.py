@@ -231,6 +231,52 @@ def get_pdf_from_s3(s3_key):
         logger.error(f"S3 download error: {e}")
         return None
 
+# Initialize database BEFORE routes
+def init_db():
+    """Initialize the database and create default admin user"""
+    try:
+        logger.info("Starting database initialization...")
+        
+        # Create all tables
+        db.create_all()
+        logger.info("Database tables created successfully")
+        
+        # Check if admin user exists
+        existing_admin = User.query.filter_by(username='admin').first()
+        if existing_admin:
+            logger.info("Admin user already exists")
+            # Verify password hash is correct
+            if not check_password_hash(existing_admin.password_hash, 'admin123'):
+                logger.info("Updating admin password hash...")
+                existing_admin.password_hash = generate_password_hash('admin123')
+                existing_admin.is_admin = True
+                existing_admin.is_active = True
+                db.session.commit()
+                logger.info("Admin password updated")
+        else:
+            # Create default admin user
+            logger.info("Creating default admin user...")
+            admin_user = User(
+                username='admin',
+                email='admin@example.com',
+                password_hash=generate_password_hash('admin123'),
+                is_admin=True,
+                is_active=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            logger.info("Default admin user created successfully")
+        
+        logger.info("Database initialization completed successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Database initialization failed: {e}")
+        try:
+            db.session.rollback()
+        except:
+            pass
+        return False
+
 # Routes
 @app.route('/')
 def index():
@@ -256,35 +302,51 @@ def login():
                 logger.error("No data provided in login request")
                 return jsonify({'success': False, 'message': 'No data provided'}), 400
             
-            username = data.get('username')
-            password = data.get('password')
+            username = data.get('username', '').strip()
+            password = data.get('password', '')
             
-            logger.info(f"Login attempt for username: {username}")
+            logger.info(f"Login attempt for username: '{username}'")
             
             if not username or not password:
+                logger.warning("Username or password missing")
                 return jsonify({'success': False, 'message': 'Username and password required'}), 400
             
-            user = User.query.filter_by(username=username, is_active=True).first()
-            logger.info(f"User found: {user is not None}")
+            # Query user with exact username match
+            user = User.query.filter_by(username=username).first()
+            logger.info(f"User query result: {user is not None}")
             
             if user:
+                logger.info(f"User found: {user.username}, Active: {user.is_active}, Admin: {user.is_admin}")
+                
+                if not user.is_active:
+                    logger.warning(f"User {username} is inactive")
+                    return jsonify({'success': False, 'message': 'Account is inactive'}), 401
+                
+                # Check password
                 password_valid = check_password_hash(user.password_hash, password)
-                logger.info(f"Password valid: {password_valid}")
+                logger.info(f"Password validation result: {password_valid}")
                 
                 if password_valid:
-                    login_user(user)
+                    login_user(user, remember=True)
                     logger.info(f"User {username} logged in successfully")
                     return jsonify({
                         'success': True, 
-                        'message': 'Login successful'
+                        'message': 'Login successful',
+                        'redirect': '/admin' if user.is_admin else '/dashboard'
                     })
+                else:
+                    logger.warning(f"Invalid password for user: {username}")
+            else:
+                logger.warning(f"User not found: {username}")
+                # Let's check all users in database for debugging
+                all_users = User.query.all()
+                logger.info(f"All users in database: {[(u.id, u.username) for u in all_users]}")
             
-            logger.warning(f"Invalid login attempt for username: {username}")
-            return jsonify({'success': False, 'message': 'Invalid credentials'}), 401
+            return jsonify({'success': False, 'message': 'Invalid username or password'}), 401
             
         except Exception as e:
             logger.error(f"Login error: {e}")
-            return jsonify({'success': False, 'message': 'Login failed'}), 500
+            return jsonify({'success': False, 'message': 'Login failed due to server error'}), 500
     
     return render_template('login.html')
 
@@ -861,23 +923,11 @@ def manual_init_db():
     """Manual database initialization endpoint"""
     try:
         with app.app_context():
-            db.create_all()
-            
-            # Create default admin user if none exists
-            if not User.query.filter_by(is_admin=True).first():
-                admin_user = User(
-                    username='admin',
-                    email='admin@example.com',
-                    password_hash=generate_password_hash('admin123'),
-                    is_admin=True,
-                    is_active=True
-                )
-                db.session.add(admin_user)
-                db.session.commit()
-                logger.info("Default admin user created - username: admin, password: admin123")
-                return jsonify({'success': True, 'message': 'Database initialized and admin user created'})
+            result = init_db()
+            if result:
+                return jsonify({'success': True, 'message': 'Database initialized successfully. Default admin: username=admin, password=admin123'})
             else:
-                return jsonify({'success': True, 'message': 'Database already initialized'})
+                return jsonify({'success': False, 'message': 'Database initialization failed'})
     except Exception as e:
         logger.error(f"Manual database initialization error: {e}")
         return jsonify({'success': False, 'message': f'Database initialization failed: {str(e)}'})
@@ -910,36 +960,16 @@ def internal_error(error):
         pass
     return jsonify({'error': 'Internal server error'}), 500
 
-# Initialize database FIRST before any routes
-def init_db():
-    """Initialize the database and create default admin user"""
-    try:
-        with app.app_context():
-            db.create_all()
-            
-            # Create default admin user if none exists
-            if not User.query.filter_by(is_admin=True).first():
-                admin_user = User(
-                    username='admin',
-                    email='admin@example.com',
-                    password_hash=generate_password_hash('admin123'),
-                    is_admin=True,
-                    is_active=True
-                )
-                db.session.add(admin_user)
-                db.session.commit()
-                logger.info("Default admin user created - username: admin, password: admin123")
-            
-            logger.info("Database initialized successfully")
-            return True
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        return False
-
-# Initialize database before starting the app
+# Initialize database when app starts
 with app.app_context():
-    init_db()
+    success = init_db()
+    if not success:
+        logger.error("Failed to initialize database on startup")
 
 if __name__ == '__main__':
+    # Ensure database is initialized before running
+    with app.app_context():
+        init_db()
+    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
