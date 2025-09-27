@@ -92,6 +92,7 @@
             cursor: pointer;
             font-size: 0.9rem;
             transition: background-color 0.2s;
+            margin-right: 0.5rem;
         }
         .btn-primary {
             background-color: #3498db;
@@ -121,6 +122,13 @@
         .btn-warning:hover {
             background-color: #e67e22;
         }
+        .btn-info {
+            background-color: #16a085;
+            color: white;
+        }
+        .btn-info:hover {
+            background-color: #138d75;
+        }
         .table {
             width: 100%;
             border-collapse: collapse;
@@ -135,6 +143,11 @@
         .table th {
             background-color: #f8f9fa;
             font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        .table th:hover {
+            background-color: #e9ecef;
         }
         .table tr:hover {
             background-color: #f8f9fa;
@@ -158,7 +171,9 @@
             border-radius: 8px;
             padding: 2rem;
             width: 90%;
-            max-width: 500px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
         }
         .modal-header {
             display: flex;
@@ -209,20 +224,80 @@
             padding: 2rem;
             color: #666;
         }
+        .status-active {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .status-inactive {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .folder-select-container {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+        .folder-checkbox {
+            display: block;
+            padding: 0.25rem 0;
+        }
+        .folder-checkbox input {
+            margin-right: 0.5rem;
+        }
+        .file-list-container {
+            margin-top: 1rem;
+        }
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        .file-item input[type="checkbox"] {
+            margin-right: 1rem;
+        }
+        .file-item-name {
+            flex: 1;
+        }
+        .file-item-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .bulk-actions {
+            margin: 1rem 0;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
         .upload-area {
-            border: 2px dashed #ccc;
+            border: 2px dashed #3498db;
             padding: 2rem;
             text-align: center;
             margin: 1rem 0;
             border-radius: 8px;
-            background-color: #f8f9fa;
+            background-color: #f0f8ff;
+            cursor: pointer;
         }
-        .upload-area.dragover {
-            border-color: #3498db;
+        .upload-area:hover {
             background-color: #e3f2fd;
         }
-        .file-input {
-            display: none;
+        .upload-area.dragover {
+            border-color: #2980b9;
+            background-color: #d4e6f1;
+        }
+        .sort-arrow {
+            font-size: 0.8rem;
+            margin-left: 0.25rem;
+        }
+        .back-btn {
+            margin-bottom: 1rem;
         }
     </style>
 </head>
@@ -235,7 +310,7 @@
         </div>
     </div>
 
-    <div class="container">
+    <div class="container" id="main-container">
         <div class="tabs">
             <button class="tab active" onclick="showTab('users')">User Management</button>
             <button class="tab" onclick="showTab('folders')">Folder Management</button>
@@ -268,22 +343,31 @@
         <div id="files-tab" class="tab-content">
             <div class="section-header">
                 <h2>File Management</h2>
-                <button class="btn btn-warning" onclick="showUploadSection()">Upload Files</button>
-            </div>
-            <div id="upload-section" style="display: none;">
-                <div class="form-group">
-                    <label>Select Folder:</label>
-                    <select id="folder-select">
-                        <option value="">-- Select a folder --</option>
-                    </select>
-                </div>
-                <div class="upload-area" id="upload-area">
-                    <p>Drag and drop PDF files here or click to select</p>
-                    <input type="file" id="file-input" class="file-input" multiple accept=".pdf">
-                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">Select Files</button>
-                </div>
             </div>
             <div id="files-container">
+                <div class="loading">Loading files...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Folder Files View (Hidden by default) -->
+    <div class="container" id="folder-files-container" style="display: none;">
+        <button class="btn btn-primary back-btn" onclick="backToFolders()">← Back to Folders</button>
+        <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 id="folder-files-title">Folder Files</h2>
+            <div class="bulk-actions">
+                <button class="btn btn-primary" onclick="selectAllFiles()">Select All</button>
+                <button class="btn btn-warning" onclick="deselectAllFiles()">Deselect All</button>
+                <button class="btn btn-danger" onclick="deleteSelectedFiles()">Delete Selected</button>
+                <button class="btn btn-success" onclick="showUploadToFolder()">Add More Files</button>
+            </div>
+            <div id="upload-to-folder" style="display: none;">
+                <div class="upload-area" id="folder-upload-area">
+                    <p>Drag and drop PDF files here or click to select</p>
+                    <input type="file" id="folder-file-input" multiple accept=".pdf" style="display: none;">
+                </div>
+            </div>
+            <div id="folder-files-list">
                 <div class="loading">Loading files...</div>
             </div>
         </div>
@@ -297,6 +381,7 @@
                 <button class="close-modal" onclick="closeModal('user-modal')">&times;</button>
             </div>
             <form id="user-form">
+                <input type="hidden" id="edit-user-id">
                 <div class="form-group">
                     <label for="username">Username</label>
                     <input type="text" id="username" name="username" required>
@@ -305,9 +390,10 @@
                     <label for="email">Email</label>
                     <input type="email" id="email" name="email" required>
                 </div>
-                <div class="form-group">
+                <div class="form-group" id="password-group">
                     <label for="password">Password</label>
-                    <input type="password" id="password" name="password" required>
+                    <input type="password" id="password" name="password">
+                    <small style="color: #666;">Leave blank to keep existing password (edit mode only)</small>
                 </div>
                 <div class="form-group">
                     <div class="checkbox-group">
@@ -318,7 +404,7 @@
                 <div class="form-group">
                     <div class="checkbox-group">
                         <input type="checkbox" id="is_active" name="is_active" checked>
-                        <label for="is_active">Active</label>
+                        <label for="is_active">Active (User can login and access files)</label>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-success">Save User</button>
@@ -347,48 +433,55 @@
         </div>
     </div>
 
-    <!-- Permissions Modal -->
+    <!-- User Permissions Modal -->
     <div id="permissions-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Manage Folder Permissions</h3>
+                <h3 id="permissions-modal-title">Manage User Permissions</h3>
                 <button class="close-modal" onclick="closeModal('permissions-modal')">&times;</button>
             </div>
             <form id="permissions-form">
-                <input type="hidden" id="perm-folder-id">
+                <input type="hidden" id="perm-user-id">
                 <div class="form-group">
-                    <label for="perm-user-select">Select User</label>
-                    <select id="perm-user-select" required>
-                        <option value="">-- Select a user --</option>
-                    </select>
+                    <label>Select Folders (Multi-select):</label>
+                    <div class="folder-select-container" id="folder-checkboxes">
+                        <!-- Folders will be populated here -->
+                    </div>
                 </div>
                 <div class="form-group">
-                    <label for="perm-level">Permission Level</label>
-                    <select id="perm-level" required>
+                    <label for="perm-level">Permission Level for Selected Folders</label>
+                    <select id="perm-level">
                         <option value="read">Read Only</option>
                         <option value="write">Read & Write</option>
                         <option value="admin">Full Admin</option>
                     </select>
                 </div>
-                <button type="submit" class="btn btn-success">Grant Permission</button>
+                <button type="submit" class="btn btn-success">Grant Permissions</button>
             </form>
         </div>
     </div>
 
     <script>
         let currentEditingUserId = null;
+        let currentViewingFolderId = null;
         let allFolders = [];
         let allUsers = [];
+        let allFiles = [];
+        let selectedFiles = new Set();
+        let sortDirection = {};
 
         // Load initial data
         document.addEventListener('DOMContentLoaded', function() {
             loadUsers();
             loadFolders();
             loadFiles();
-            setupUploadArea();
         });
 
         function showTab(tabName) {
+            // Hide folder files view and show main container
+            document.getElementById('folder-files-container').style.display = 'none';
+            document.getElementById('main-container').style.display = 'block';
+            
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => {
                 tab.classList.remove('active');
@@ -407,6 +500,30 @@
             if (tabName === 'files') loadFiles();
         }
 
+        // Sorting function
+        function sortTable(data, key) {
+            const direction = sortDirection[key] || 'asc';
+            
+            data.sort((a, b) => {
+                let aVal = a[key];
+                let bVal = b[key];
+                
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+                
+                if (direction === 'asc') {
+                    return aVal > bVal ? 1 : -1;
+                } else {
+                    return aVal < bVal ? 1 : -1;
+                }
+            });
+            
+            sortDirection[key] = direction === 'asc' ? 'desc' : 'asc';
+            return data;
+        }
+
         // User Management Functions
         async function loadUsers() {
             try {
@@ -415,13 +532,13 @@
                 allUsers = data.users || [];
                 
                 const container = document.getElementById('users-container');
-                if (data.users && data.users.length > 0) {
+                if (allUsers.length > 0) {
                     container.innerHTML = `
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>Username</th>
-                                    <th>Email</th>
+                                    <th onclick="sortAndReloadUsers('username')">Username <span class="sort-arrow">↕</span></th>
+                                    <th onclick="sortAndReloadUsers('email')">Email <span class="sort-arrow">↕</span></th>
                                     <th>Status</th>
                                     <th>Role</th>
                                     <th>Created</th>
@@ -429,16 +546,19 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${data.users.map(user => `
+                                ${allUsers.map(user => `
                                     <tr>
                                         <td>${user.username}</td>
                                         <td>${user.email}</td>
-                                        <td>${user.is_active ? '<span style="color: green;">Active</span>' : '<span style="color: red;">Inactive</span>'}</td>
+                                        <td class="${user.is_active ? 'status-active' : 'status-inactive'}">
+                                            ${user.is_active ? 'Active' : 'Inactive'}
+                                        </td>
                                         <td>${user.is_admin ? 'Admin' : 'User'}</td>
                                         <td>${new Date(user.created_at).toLocaleDateString()}</td>
                                         <td>
                                             <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
-                                            <button class="btn btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                                            <button class="btn btn-info" onclick="manageUserPermissions(${user.id}, '${user.username}')">Permissions</button>
+                                            <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -454,6 +574,83 @@
             }
         }
 
+        function sortAndReloadUsers(key) {
+            allUsers = sortTable(allUsers, key);
+            const container = document.getElementById('users-container');
+            container.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortAndReloadUsers('username')">Username <span class="sort-arrow">↕</span></th>
+                            <th onclick="sortAndReloadUsers('email')">Email <span class="sort-arrow">↕</span></th>
+                            <th>Status</th>
+                            <th>Role</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${allUsers.map(user => `
+                            <tr>
+                                <td>${user.username}</td>
+                                <td>${user.email}</td>
+                                <td class="${user.is_active ? 'status-active' : 'status-inactive'}">
+                                    ${user.is_active ? 'Active' : 'Inactive'}
+                                </td>
+                                <td>${user.is_admin ? 'Admin' : 'User'}</td>
+                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                                <td>
+                                    <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
+                                    <button class="btn btn-info" onclick="manageUserPermissions(${user.id}, '${user.username}')">Permissions</button>
+                                    <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function editUser(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+            
+            currentEditingUserId = userId;
+            document.getElementById('user-modal-title').textContent = 'Edit User';
+            document.getElementById('edit-user-id').value = userId;
+            document.getElementById('username').value = user.username;
+            document.getElementById('email').value = user.email;
+            document.getElementById('password').value = '';
+            document.getElementById('is_admin').checked = user.is_admin;
+            document.getElementById('is_active').checked = user.is_active;
+            document.getElementById('user-modal').style.display = 'block';
+        }
+
+        function openCreateUserModal() {
+            currentEditingUserId = null;
+            document.getElementById('user-modal-title').textContent = 'Create User';
+            document.getElementById('user-form').reset();
+            document.getElementById('edit-user-id').value = '';
+            document.getElementById('user-modal').style.display = 'block';
+        }
+
+        async function manageUserPermissions(userId, username) {
+            document.getElementById('perm-user-id').value = userId;
+            document.getElementById('permissions-modal-title').textContent = `Manage Permissions for ${username}`;
+            
+            // Load folders with checkboxes
+            await loadFolders();
+            const folderContainer = document.getElementById('folder-checkboxes');
+            folderContainer.innerHTML = allFolders.map(folder => `
+                <label class="folder-checkbox">
+                    <input type="checkbox" name="folders" value="${folder.id}">
+                    ${folder.folder_name} (${folder.folder_path})
+                </label>
+            `).join('');
+            
+            document.getElementById('permissions-modal').style.display = 'block';
+        }
+
         // Folder Management Functions
         async function loadFolders() {
             try {
@@ -462,21 +659,13 @@
                 allFolders = data.folders || [];
                 
                 const container = document.getElementById('folders-container');
-                
-                // Update folder select dropdown
-                const folderSelect = document.getElementById('folder-select');
-                if (folderSelect) {
-                    folderSelect.innerHTML = '<option value="">-- Select a folder --</option>' +
-                        allFolders.map(folder => `<option value="${folder.id}">${folder.folder_name}</option>`).join('');
-                }
-                
                 if (allFolders.length > 0) {
                     container.innerHTML = `
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>Folder Name</th>
-                                    <th>Path</th>
+                                    <th onclick="sortAndReloadFolders('folder_name')">Folder Name <span class="sort-arrow">↕</span></th>
+                                    <th onclick="sortAndReloadFolders('folder_path')">Path <span class="sort-arrow">↕</span></th>
                                     <th>Permission Level</th>
                                     <th>Actions</th>
                                 </tr>
@@ -488,8 +677,7 @@
                                         <td>${folder.folder_path}</td>
                                         <td>${folder.permission_level}</td>
                                         <td>
-                                            <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View Files</button>
-                                            <button class="btn btn-success" onclick="manageFolderPermissions(${folder.id}, '${folder.folder_name}')">Permissions</button>
+                                            <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -505,27 +693,262 @@
             }
         }
 
+        function sortAndReloadFolders(key) {
+            allFolders = sortTable(allFolders, key);
+            const container = document.getElementById('folders-container');
+            container.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortAndReloadFolders('folder_name')">Folder Name <span class="sort-arrow">↕</span></th>
+                            <th onclick="sortAndReloadFolders('folder_path')">Path <span class="sort-arrow">↕</span></th>
+                            <th>Permission Level</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${allFolders.map(folder => `
+                            <tr>
+                                <td>${folder.folder_name}</td>
+                                <td>${folder.folder_path}</td>
+                                <td>${folder.permission_level}</td>
+                                <td>
+                                    <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // View folder files with management capabilities
+        async function viewFolderFiles(folderId, folderName) {
+            currentViewingFolderId = folderId;
+            selectedFiles.clear();
+            
+            // Hide main container and show folder files view
+            document.getElementById('main-container').style.display = 'none';
+            document.getElementById('folder-files-container').style.display = 'block';
+            document.getElementById('folder-files-title').textContent = `Files in "${folderName}"`;
+            
+            try {
+                const response = await fetch(`/folders/${folderId}/files`);
+                const data = await response.json();
+                
+                const container = document.getElementById('folder-files-list');
+                if (data.success && data.files.length > 0) {
+                    container.innerHTML = `
+                        <div class="file-list-container">
+                            ${data.files.map(file => `
+                                <div class="file-item">
+                                    <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
+                                    <div class="file-item-name">
+                                        <strong>${file.original_name}</strong>
+                                        <br>
+                                        <small>Uploaded: ${new Date(file.upload_date).toLocaleDateString()}</small>
+                                    </div>
+                                    <div class="file-item-actions">
+                                        <a href="/view/${file.id}" class="btn btn-primary" target="_blank">View</a>
+                                        <button class="btn btn-danger" onclick="deleteSingleFile(${file.id})">Delete</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p>No files in this folder. Click "Add More Files" to upload.</p>';
+                }
+                
+                // Setup upload area for this folder
+                setupFolderUpload(folderId);
+                
+            } catch (error) {
+                console.error('Error loading folder files:', error);
+                document.getElementById('folder-files-list').innerHTML = '<p>Error loading files.</p>';
+            }
+        }
+
+        function backToFolders() {
+            document.getElementById('folder-files-container').style.display = 'none';
+            document.getElementById('main-container').style.display = 'block';
+            showTab('folders');
+        }
+
+        function toggleFileSelection(fileId) {
+            if (selectedFiles.has(fileId)) {
+                selectedFiles.delete(fileId);
+            } else {
+                selectedFiles.add(fileId);
+            }
+        }
+
+        function selectAllFiles() {
+            const checkboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = true;
+                selectedFiles.add(parseInt(cb.value));
+            });
+        }
+
+        function deselectAllFiles() {
+            const checkboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+            });
+            selectedFiles.clear();
+        }
+
+        async function deleteSelectedFiles() {
+            if (selectedFiles.size === 0) {
+                alert('Please select files to delete');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete ${selectedFiles.size} file(s)?`)) return;
+            
+            let deletedCount = 0;
+            for (const fileId of selectedFiles) {
+                try {
+                    const response = await fetch(`/api/files/${fileId}`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) deletedCount++;
+                } catch (error) {
+                    console.error(`Error deleting file ${fileId}:`, error);
+                }
+            }
+            
+            alert(`Successfully deleted ${deletedCount} file(s)`);
+            selectedFiles.clear();
+            
+            // Reload the folder files
+            const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
+            viewFolderFiles(currentViewingFolderId, folderName);
+        }
+
+        async function deleteSingleFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+            
+            try {
+                const response = await fetch(`/api/files/${fileId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('File deleted successfully!');
+                    // Reload the folder files
+                    const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
+                    viewFolderFiles(currentViewingFolderId, folderName);
+                } else {
+                    alert('Error deleting file');
+                }
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                alert('Error deleting file');
+            }
+        }
+
+        function showUploadToFolder() {
+            const uploadSection = document.getElementById('upload-to-folder');
+            uploadSection.style.display = uploadSection.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function setupFolderUpload(folderId) {
+            const uploadArea = document.getElementById('folder-upload-area');
+            const fileInput = document.getElementById('folder-file-input');
+            
+            // Remove old event listeners
+            const newUploadArea = uploadArea.cloneNode(true);
+            uploadArea.parentNode.replaceChild(newUploadArea, uploadArea);
+            
+            // Add new event listeners
+            newUploadArea.addEventListener('click', () => {
+                document.getElementById('folder-file-input').click();
+            });
+            
+            newUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                newUploadArea.classList.add('dragover');
+            });
+            
+            newUploadArea.addEventListener('dragleave', () => {
+                newUploadArea.classList.remove('dragover');
+            });
+            
+            newUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                newUploadArea.classList.remove('dragover');
+                handleFolderFiles(e.dataTransfer.files, folderId);
+            });
+            
+            document.getElementById('folder-file-input').addEventListener('change', (e) => {
+                handleFolderFiles(e.target.files, folderId);
+            });
+        }
+
+        async function handleFolderFiles(files, folderId) {
+            const formData = new FormData();
+            let pdfCount = 0;
+            
+            Array.from(files).forEach(file => {
+                if (file.type === 'application/pdf') {
+                    formData.append('files', file);
+                    pdfCount++;
+                }
+            });
+            
+            if (pdfCount === 0) {
+                alert('Please select PDF files only');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/upload/${folderId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Successfully uploaded ${data.uploaded} file(s)!`);
+                    document.getElementById('folder-file-input').value = '';
+                    // Reload the folder files
+                    const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
+                    viewFolderFiles(currentViewingFolderId, folderName);
+                } else {
+                    alert('Upload failed: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                alert('Upload failed. Note: File uploads require AWS S3 configuration.');
+            }
+        }
+
         // File Management Functions
         async function loadFiles() {
             try {
                 const response = await fetch('/api/files');
                 const data = await response.json();
+                allFiles = data.files || [];
                 
                 const container = document.getElementById('files-container');
-                if (data.files && data.files.length > 0) {
+                if (allFiles.length > 0) {
                     container.innerHTML = `
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th>File Name</th>
-                                    <th>Folder</th>
+                                    <th onclick="sortAndReloadFiles('original_name')">File Name <span class="sort-arrow">↕</span></th>
+                                    <th onclick="sortAndReloadFiles('folder_name')">Folder <span class="sort-arrow">↕</span></th>
                                     <th>Uploaded By</th>
                                     <th>Upload Date</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${data.files.map(file => `
+                                ${allFiles.map(file => `
                                     <tr>
                                         <td>${file.original_name}</td>
                                         <td>${file.folder_name}</td>
@@ -549,145 +972,39 @@
             }
         }
 
-        // View folder files
-        async function viewFolderFiles(folderId, folderName) {
-            try {
-                const response = await fetch(`/folders/${folderId}/files`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`Folder "${folderName}" contains ${data.files.length} file(s).`);
-                    // You could show these in a modal or switch to the files tab
-                    showTab('files');
-                }
-            } catch (error) {
-                console.error('Error viewing folder files:', error);
-                alert('Error viewing folder files');
-            }
-        }
-
-        // Manage folder permissions
-        function manageFolderPermissions(folderId, folderName) {
-            document.getElementById('perm-folder-id').value = folderId;
-            
-            // Populate user dropdown
-            const userSelect = document.getElementById('perm-user-select');
-            userSelect.innerHTML = '<option value="">-- Select a user --</option>' +
-                allUsers.filter(u => !u.is_admin).map(user => 
-                    `<option value="${user.id}">${user.username} (${user.email})</option>`
-                ).join('');
-            
-            document.getElementById('permissions-modal').style.display = 'block';
-        }
-
-        // Handle permissions form submission
-        document.getElementById('permissions-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const folderId = document.getElementById('perm-folder-id').value;
-            const userId = document.getElementById('perm-user-select').value;
-            const permissionLevel = document.getElementById('perm-level').value;
-            
-            try {
-                const response = await fetch('/api/permissions', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        user_id: parseInt(userId),
-                        folder_id: parseInt(folderId),
-                        permission_level: permissionLevel
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    alert('Permission granted successfully!');
-                    closeModal('permissions-modal');
-                } else {
-                    alert('Error: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error granting permission:', error);
-                alert('Error granting permission');
-            }
-        });
-
-        // Upload functions
-        function showUploadSection() {
-            const section = document.getElementById('upload-section');
-            section.style.display = section.style.display === 'none' ? 'block' : 'none';
-        }
-
-        function setupUploadArea() {
-            const uploadArea = document.getElementById('upload-area');
-            const fileInput = document.getElementById('file-input');
-            
-            if (!uploadArea || !fileInput) return;
-            
-            uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                uploadArea.classList.add('dragover');
-            });
-            
-            uploadArea.addEventListener('dragleave', () => {
-                uploadArea.classList.remove('dragover');
-            });
-            
-            uploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-                handleFiles(e.dataTransfer.files);
-            });
-            
-            fileInput.addEventListener('change', (e) => {
-                handleFiles(e.target.files);
-            });
-        }
-
-        async function handleFiles(files) {
-            const folderId = document.getElementById('folder-select').value;
-            
-            if (!folderId) {
-                alert('Please select a folder first');
-                return;
-            }
-            
-            const formData = new FormData();
-            Array.from(files).forEach(file => {
-                if (file.type === 'application/pdf') {
-                    formData.append('files', file);
-                }
-            });
-            
-            try {
-                const response = await fetch(`/upload/${folderId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`Uploaded ${data.uploaded} files successfully!`);
-                    loadFiles();
-                    document.getElementById('file-input').value = '';
-                } else {
-                    alert('Upload failed: ' + data.message);
-                }
-            } catch (error) {
-                console.error('Upload error:', error);
-                alert('Upload failed');
-            }
+        function sortAndReloadFiles(key) {
+            allFiles = sortTable(allFiles, key);
+            const container = document.getElementById('files-container');
+            container.innerHTML = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th onclick="sortAndReloadFiles('original_name')">File Name <span class="sort-arrow">↕</span></th>
+                            <th onclick="sortAndReloadFiles('folder_name')">Folder <span class="sort-arrow">↕</span></th>
+                            <th>Uploaded By</th>
+                            <th>Upload Date</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${allFiles.map(file => `
+                            <tr>
+                                <td>${file.original_name}</td>
+                                <td>${file.folder_name}</td>
+                                <td>${file.uploaded_by}</td>
+                                <td>${new Date(file.upload_date).toLocaleDateString()}</td>
+                                <td>
+                                    <a href="/view/${file.id}" class="btn btn-primary" target="_blank">View</a>
+                                    <button class="btn btn-danger" onclick="deleteFile(${file.id})">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
         }
 
         // Modal functions
-        function openCreateUserModal() {
-            currentEditingUserId = null;
-            document.getElementById('user-modal-title').textContent = 'Create User';
-            document.getElementById('user-form').reset();
-            document.getElementById('user-modal').style.display = 'block';
-        }
-
         function openCreateFolderModal() {
             document.getElementById('folder-form').reset();
             document.getElementById('folder-modal').style.display = 'block';
@@ -705,14 +1022,26 @@
             const userData = {
                 username: formData.get('username'),
                 email: formData.get('email'),
-                password: formData.get('password'),
                 is_admin: formData.get('is_admin') === 'on',
                 is_active: formData.get('is_active') === 'on'
             };
+            
+            // Only include password if it's provided
+            const password = formData.get('password');
+            if (password) {
+                userData.password = password;
+            }
 
             try {
-                const url = currentEditingUserId ? `/api/users/${currentEditingUserId}` : '/api/users';
-                const method = currentEditingUserId ? 'PUT' : 'POST';
+                const editUserId = document.getElementById('edit-user-id').value;
+                const url = editUserId ? `/api/users/${editUserId}` : '/api/users';
+                const method = editUserId ? 'PUT' : 'POST';
+                
+                // For new users, password is required
+                if (!editUserId && !password) {
+                    alert('Password is required for new users');
+                    return;
+                }
                 
                 const response = await fetch(url, {
                     method: method,
@@ -725,7 +1054,7 @@
                 if (result.success) {
                     closeModal('user-modal');
                     loadUsers();
-                    alert('User saved successfully!');
+                    alert(editUserId ? 'User updated successfully!' : 'User created successfully!');
                 } else {
                     alert('Error: ' + result.message);
                 }
@@ -767,9 +1096,46 @@
             }
         });
 
+        // Handle permissions form submission
+        document.getElementById('permissions-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const userId = document.getElementById('perm-user-id').value;
+            const permissionLevel = document.getElementById('perm-level').value;
+            const selectedFolders = Array.from(document.querySelectorAll('input[name="folders"]:checked')).map(cb => cb.value);
+            
+            if (selectedFolders.length === 0) {
+                alert('Please select at least one folder');
+                return;
+            }
+            
+            let successCount = 0;
+            for (const folderId of selectedFolders) {
+                try {
+                    const response = await fetch('/api/permissions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: parseInt(userId),
+                            folder_id: parseInt(folderId),
+                            permission_level: permissionLevel
+                        })
+                    });
+                    
+                    const result = await response.json();
+                    if (result.success) successCount++;
+                } catch (error) {
+                    console.error('Error granting permission:', error);
+                }
+            }
+            
+            alert(`Permissions granted for ${successCount} folder(s)`);
+            closeModal('permissions-modal');
+        });
+
         // Delete functions
-        async function deleteUser(userId) {
-            if (!confirm('Are you sure you want to delete this user?')) return;
+        async function deleteUser(userId, username) {
+            if (!confirm(`Are you sure you want to delete user "${username}"? This will remove all access and the user will no longer be able to login.`)) return;
             
             try {
                 const response = await fetch(`/api/users/${userId}`, {
@@ -779,7 +1145,7 @@
                 
                 if (result.success) {
                     loadUsers();
-                    alert('User deleted successfully!');
+                    alert('User deleted successfully! They can no longer access the system.');
                 } else {
                     alert('Error: ' + result.message);
                 }
