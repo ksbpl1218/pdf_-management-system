@@ -458,270 +458,6 @@ def register():
             username=username,
             email=email,
             password_hash=generate_password_hash(password),
-            is_admin=is_admin
-        )
-        
-        db.session.add(user)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'User created successfully'})
-    except Exception as e:
-        logger.error(f"Error creating user: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to create user'}), 500
-
-@app.route('/api/users/<int:user_id>', methods=['PUT'])
-@login_required
-@admin_required
-def update_user(user_id):
-    try:
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'success': False, 'message': 'User not found'}), 404
-            
-        data = request.get_json()
-        
-        if 'username' in data:
-            existing_user = User.query.filter_by(username=data['username']).first()
-            if existing_user and existing_user.id != user_id:
-                return jsonify({'success': False, 'message': 'Username already exists'}), 400
-            user.username = data['username']
-        
-        if 'email' in data:
-            existing_user = User.query.filter_by(email=data['email']).first()
-            if existing_user and existing_user.id != user_id:
-                return jsonify({'success': False, 'message': 'Email already exists'}), 400
-            user.email = data['email']
-        
-        if 'is_active' in data:
-            user.is_active = data['is_active']
-        
-        if 'is_admin' in data:
-            user.is_admin = data['is_admin']
-        
-        if 'password' in data and data['password']:
-            user.password_hash = generate_password_hash(data['password'])
-        
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'User updated successfully'})
-    except Exception as e:
-        logger.error(f"Error updating user: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to update user'}), 500
-
-@app.route('/api/users/<int:user_id>', methods=['DELETE'])
-@login_required
-@admin_required
-def delete_user(user_id):
-    try:
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'success': False, 'message': 'User not found'}), 404
-        
-        # Prevent deleting yourself
-        if user.id == current_user.id:
-            return jsonify({'success': False, 'message': 'Cannot delete your own account'}), 400
-        
-        # Prevent deleting the last admin
-        if user.is_admin:
-            admin_count = User.query.filter_by(is_admin=True, is_active=True).count()
-            if admin_count <= 1:
-                return jsonify({'success': False, 'message': 'Cannot delete the last admin user'}), 400
-        
-        # Delete user's permissions first
-        FolderPermission.query.filter_by(user_id=user_id).delete()
-        
-        db.session.delete(user)
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'User deleted successfully'})
-    except Exception as e:
-        logger.error(f"Error deleting user: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to delete user'}), 500
-
-# File Management (Admin)
-@app.route('/api/files', methods=['GET'])
-@login_required
-@admin_required
-def get_all_files():
-    try:
-        files = PDFFile.query.join(Folder).all()
-        files_data = []
-        for file in files:
-            folder = db.session.get(Folder, file.folder_id)
-            uploader = db.session.get(User, file.uploaded_by)
-            files_data.append({
-                'id': file.id,
-                'original_name': file.original_name,
-                'folder_name': folder.folder_name if folder else 'Unknown',
-                'upload_date': file.upload_date.isoformat(),
-                'uploaded_by': uploader.username if uploader else 'Unknown',
-                'file_size': file.file_size
-            })
-        return jsonify({'files': files_data})
-    except Exception as e:
-        logger.error(f"Error getting files: {e}")
-        return jsonify({'error': 'Failed to fetch files'}), 500
-
-@app.route('/api/files/<int:file_id>', methods=['DELETE'])
-@login_required
-def delete_file(file_id):
-    try:
-        pdf_file = db.session.get(PDFFile, file_id)
-        if not pdf_file:
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Check permission
-        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'admin'):
-            return jsonify({'error': 'Delete permission required'}), 403
-        
-        # Delete from S3
-        if s3_client:
-            try:
-                s3_client.delete_object(Bucket=S3_BUCKET, Key=pdf_file.s3_key)
-            except Exception as e:
-                logger.error(f"Error deleting from S3: {e}")
-        
-        # Delete from database
-        db.session.delete(pdf_file)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'File deleted successfully'})
-    
-    except Exception as e:
-        logger.error(f"Error deleting file: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to delete file'}), 500
-
-# Permission Management Routes
-@app.route('/api/permissions', methods=['POST'])
-@login_required
-@admin_required
-def grant_permission():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
-        
-        user_id = data.get('user_id')
-        folder_id = data.get('folder_id')
-        permission_level = data.get('permission_level', 'read')
-        
-        if not all([user_id, folder_id]):
-            return jsonify({'success': False, 'message': 'User ID and Folder ID required'}), 400
-        
-        if permission_level not in ['read', 'write', 'admin']:
-            return jsonify({'success': False, 'message': 'Invalid permission level'}), 400
-        
-        # Check if permission already exists
-        existing = FolderPermission.query.filter_by(
-            user_id=user_id, 
-            folder_id=folder_id
-        ).first()
-        
-        if existing:
-            existing.permission_level = permission_level
-            existing.granted_by = current_user.id
-            existing.granted_at = datetime.utcnow()
-        else:
-            permission = FolderPermission(
-                user_id=user_id,
-                folder_id=folder_id,
-                permission_level=permission_level,
-                granted_by=current_user.id
-            )
-            db.session.add(permission)
-        
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Permission granted successfully'})
-    except Exception as e:
-        logger.error(f"Error granting permission: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to grant permission'}), 500
-
-@app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
-@login_required
-@admin_required
-def revoke_permission(user_id, folder_id):
-    try:
-        permission = FolderPermission.query.filter_by(
-            user_id=user_id,
-            folder_id=folder_id
-        ).first()
-        
-        if not permission:
-            return jsonify({'success': False, 'message': 'Permission not found'}), 404
-        
-        db.session.delete(permission)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Permission revoked successfully'})
-    except Exception as e:
-        logger.error(f"Error revoking permission: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to revoke permission'}), 500
-
-# Database initialization endpoint
-@app.route('/init-database')
-def manual_init_db():
-    """Manual database initialization endpoint"""
-    try:
-        with app.app_context():
-            result = init_db()
-            if result:
-                return jsonify({'success': True, 'message': 'Database initialized successfully. Default admin: username=admin, password=admin123'})
-            else:
-                return jsonify({'success': False, 'message': 'Database initialization failed'})
-    except Exception as e:
-        logger.error(f"Manual database initialization error: {e}")
-        return jsonify({'success': False, 'message': f'Database initialization failed: {str(e)}'})
-
-# API endpoint to get current user info
-@app.route('/api/user-info')
-@login_required
-def get_user_info():
-    try:
-        return jsonify({
-            'id': current_user.id,
-            'username': current_user.username,
-            'email': current_user.email,
-            'is_admin': current_user.is_admin
-        })
-    except Exception as e:
-        logger.error(f"Error getting user info: {e}")
-        return jsonify({'error': 'Failed to get user info'}), 500
-
-# Error handlers
-@app.errorhandler(404)
-def not_found_error(error):
-    return jsonify({'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    try:
-        db.session.rollback()
-    except:
-        pass
-    return jsonify({'error': 'Internal server error'}), 500
-
-# Initialize database when app starts
-with app.app_context():
-    success = init_db()
-    if not success:
-        logger.error("Failed to initialize database on startup")
-
-if __name__ == '__main__':
-    # Ensure database is initialized before running
-    with app.app_context():
-        init_db()
-    
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False), 400
-        
-        user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password),
             is_admin=False
         )
         
@@ -1023,4 +759,268 @@ def create_user():
             return jsonify({'success': False, 'message': 'Username already exists'}), 400
         
         if User.query.filter_by(email=email).first():
-            return jsonify({'success': False, 'message': 'Email already exists'}
+            return jsonify({'success': False, 'message': 'Email already exists'}), 400
+        
+        user = User(
+            username=username,
+            email=email,
+            password_hash=generate_password_hash(password),
+            is_admin=is_admin
+        )
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'User created successfully'})
+    except Exception as e:
+        logger.error(f"Error creating user: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to create user'}), 500
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@login_required
+@admin_required
+def update_user(user_id):
+    try:
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+            
+        data = request.get_json()
+        
+        if 'username' in data:
+            existing_user = User.query.filter_by(username=data['username']).first()
+            if existing_user and existing_user.id != user_id:
+                return jsonify({'success': False, 'message': 'Username already exists'}), 400
+            user.username = data['username']
+        
+        if 'email' in data:
+            existing_user = User.query.filter_by(email=data['email']).first()
+            if existing_user and existing_user.id != user_id:
+                return jsonify({'success': False, 'message': 'Email already exists'}), 400
+            user.email = data['email']
+        
+        if 'is_active' in data:
+            user.is_active = data['is_active']
+        
+        if 'is_admin' in data:
+            user.is_admin = data['is_admin']
+        
+        if 'password' in data and data['password']:
+            user.password_hash = generate_password_hash(data['password'])
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'User updated successfully'})
+    except Exception as e:
+        logger.error(f"Error updating user: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to update user'}), 500
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def delete_user(user_id):
+    try:
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'message': 'User not found'}), 404
+        
+        # Prevent deleting yourself
+        if user.id == current_user.id:
+            return jsonify({'success': False, 'message': 'Cannot delete your own account'}), 400
+        
+        # Prevent deleting the last admin
+        if user.is_admin:
+            admin_count = User.query.filter_by(is_admin=True, is_active=True).count()
+            if admin_count <= 1:
+                return jsonify({'success': False, 'message': 'Cannot delete the last admin user'}), 400
+        
+        # Delete user's permissions first
+        FolderPermission.query.filter_by(user_id=user_id).delete()
+        
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'User deleted successfully'})
+    except Exception as e:
+        logger.error(f"Error deleting user: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to delete user'}), 500
+
+# File Management (Admin)
+@app.route('/api/files', methods=['GET'])
+@login_required
+@admin_required
+def get_all_files():
+    try:
+        files = PDFFile.query.join(Folder).all()
+        files_data = []
+        for file in files:
+            folder = db.session.get(Folder, file.folder_id)
+            uploader = db.session.get(User, file.uploaded_by)
+            files_data.append({
+                'id': file.id,
+                'original_name': file.original_name,
+                'folder_name': folder.folder_name if folder else 'Unknown',
+                'upload_date': file.upload_date.isoformat(),
+                'uploaded_by': uploader.username if uploader else 'Unknown',
+                'file_size': file.file_size
+            })
+        return jsonify({'files': files_data})
+    except Exception as e:
+        logger.error(f"Error getting files: {e}")
+        return jsonify({'error': 'Failed to fetch files'}), 500
+
+@app.route('/api/files/<int:file_id>', methods=['DELETE'])
+@login_required
+def delete_file(file_id):
+    try:
+        pdf_file = db.session.get(PDFFile, file_id)
+        if not pdf_file:
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Check permission
+        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'admin'):
+            return jsonify({'error': 'Delete permission required'}), 403
+        
+        # Delete from S3
+        if s3_client:
+            try:
+                s3_client.delete_object(Bucket=S3_BUCKET, Key=pdf_file.s3_key)
+            except Exception as e:
+                logger.error(f"Error deleting from S3: {e}")
+        
+        # Delete from database
+        db.session.delete(pdf_file)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'File deleted successfully'})
+    
+    except Exception as e:
+        logger.error(f"Error deleting file: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to delete file'}), 500
+
+# Permission Management Routes
+@app.route('/api/permissions', methods=['POST'])
+@login_required
+@admin_required
+def grant_permission():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'success': False, 'message': 'No data provided'}), 400
+        
+        user_id = data.get('user_id')
+        folder_id = data.get('folder_id')
+        permission_level = data.get('permission_level', 'read')
+        
+        if not all([user_id, folder_id]):
+            return jsonify({'success': False, 'message': 'User ID and Folder ID required'}), 400
+        
+        if permission_level not in ['read', 'write', 'admin']:
+            return jsonify({'success': False, 'message': 'Invalid permission level'}), 400
+        
+        # Check if permission already exists
+        existing = FolderPermission.query.filter_by(
+            user_id=user_id, 
+            folder_id=folder_id
+        ).first()
+        
+        if existing:
+            existing.permission_level = permission_level
+            existing.granted_by = current_user.id
+            existing.granted_at = datetime.utcnow()
+        else:
+            permission = FolderPermission(
+                user_id=user_id,
+                folder_id=folder_id,
+                permission_level=permission_level,
+                granted_by=current_user.id
+            )
+            db.session.add(permission)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Permission granted successfully'})
+    except Exception as e:
+        logger.error(f"Error granting permission: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to grant permission'}), 500
+
+@app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
+@login_required
+@admin_required
+def revoke_permission(user_id, folder_id):
+    try:
+        permission = FolderPermission.query.filter_by(
+            user_id=user_id,
+            folder_id=folder_id
+        ).first()
+        
+        if not permission:
+            return jsonify({'success': False, 'message': 'Permission not found'}), 404
+        
+        db.session.delete(permission)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Permission revoked successfully'})
+    except Exception as e:
+        logger.error(f"Error revoking permission: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Failed to revoke permission'}), 500
+
+# Database initialization endpoint
+@app.route('/init-database')
+def manual_init_db():
+    """Manual database initialization endpoint"""
+    try:
+        with app.app_context():
+            result = init_db()
+            if result:
+                return jsonify({'success': True, 'message': 'Database initialized successfully. Default admin: username=admin, password=admin123'})
+            else:
+                return jsonify({'success': False, 'message': 'Database initialization failed'})
+    except Exception as e:
+        logger.error(f"Manual database initialization error: {e}")
+        return jsonify({'success': False, 'message': f'Database initialization failed: {str(e)}'})
+
+# API endpoint to get current user info
+@app.route('/api/user-info')
+@login_required
+def get_user_info():
+    try:
+        return jsonify({
+            'id': current_user.id,
+            'username': current_user.username,
+            'email': current_user.email,
+            'is_admin': current_user.is_admin
+        })
+    except Exception as e:
+        logger.error(f"Error getting user info: {e}")
+        return jsonify({'error': 'Failed to get user info'}), 500
+
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return jsonify({'error': 'Not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    try:
+        db.session.rollback()
+    except:
+        pass
+    return jsonify({'error': 'Internal server error'}), 500
+
+# Initialize database when app starts
+with app.app_context():
+    success = init_db()
+    if not success:
+        logger.error("Failed to initialize database on startup")
+
+if __name__ == '__main__':
+    # Ensure database is initialized before running
+    with app.app_context():
+        init_db()
+    
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
