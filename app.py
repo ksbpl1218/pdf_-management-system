@@ -19,6 +19,9 @@ db = SQLAlchemy(app)
 if not os.path.exists(app.config['UPLOAD_FOLDER']):
     os.makedirs(app.config['UPLOAD_FOLDER'])
 
+# Flag for first request initialization
+_first_request_done = True
+
 # Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -507,23 +510,27 @@ def grant_permission():
         print(f"Error granting permission: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
-# Initialize database
-@app.before_first_request
+# Initialize database - Fixed for Flask 2.2+
+@app.before_request
 def create_tables():
-    db.create_all()
-    
-    # Create default admin user if none exists
-    if not User.query.filter_by(is_admin=True).first():
-        admin = User(
-            username='admin',
-            email='admin@example.com',
-            password_hash=generate_password_hash('admin123'),
-            is_admin=True,
-            is_active=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("Default admin user created: admin/admin123")
+    global _first_request_done
+    if _first_request_done:
+        db.create_all()
+        
+        # Create default admin user if none exists
+        if not User.query.filter_by(is_admin=True).first():
+            admin = User(
+                username='admin',
+                email='admin@example.com',
+                password_hash=generate_password_hash('admin123'),
+                is_admin=True,
+                is_active=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Default admin user created: admin/admin123")
+        
+        _first_request_done = False
 
 if __name__ == '__main__':
     app.run(debug=True)
