@@ -1,1026 +1,1085 @@
-from flask import Flask, request, jsonify, render_template, send_file, session, Response
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
+from flask import Flask, request, jsonify, session, redirect, url_for, send_file, render_template_string
+import sqlite3
+import hashlib
 import os
-import uuid
-import boto3
-from datetime import datetime, timedelta
-import json
-from dotenv import load_dotenv
-import io
-from botocore.exceptions import ClientError
-from functools import wraps
-import logging
+import secrets
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-import secrets
-import string
-from sqlalchemy import text
+from datetime import datetime, timedelta
+import boto3
+from botocore.exceptions import NoCredentialsError
+from werkzeug.utils import secure_filename
+import uuid
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Load environment variables
-load_dotenv()
-
-# Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here-change-in-production')
+app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# Database configuration - handle both local and production
-database_url = os.getenv('DATABASE_URL')
-if database_url and database_url.startswith('postgres://'):
-    # Fix for Heroku/Render postgres URL format
-    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+# Configuration from environment variables
+DATABASE_URL = os.environ.get('DATABASE_URL', 'pdf_management.db')
+AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
+S3_BUCKET = os.environ.get('S3_BUCKET')
+S3_REGION = os.environ.get('S3_REGION', 'us-east-1')
+FLASK_ENV = os.environ.get('FLASK_ENV', 'development')
+PORT = int(os.environ.get('port', 5000))
 
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///app.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Email configuration
+SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))
+SMTP_USERNAME = os.environ.get('SMTP_USERNAME')
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL')
 
-# Email configuration for password reset
-SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
-SMTP_USERNAME = os.getenv('SMTP_USERNAME')
-SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
-SENDER_EMAIL = os.getenv('SENDER_EMAIL', SMTP_USERNAME)
-
-# AWS S3 Configuration
-AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
-AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
-S3_BUCKET = os.getenv('S3_BUCKET')
-S3_REGION = os.getenv('S3_REGION', 'us-east-1')
-
-# Initialize extensions
-db = SQLAlchemy(app)
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-
-# Initialize S3 client only if credentials are provided
+# Initialize S3 client
 s3_client = None
-if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and S3_BUCKET:
-    try:
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=S3_REGION
+if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY:
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=S3_REGION
+    )
+
+def init_db():
+    """Initialize the database with required tables"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    
+    # Users table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_admin BOOLEAN DEFAULT 0,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-        logger.info("S3 client initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize S3 client: {e}")
-else:
-    logger.warning("S3 credentials not provided - file uploads will be disabled")
+    ''')
+    
+    # Folders table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS folders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            folder_name TEXT NOT NULL,
+            folder_path TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_by INTEGER,
+            FOREIGN KEY (created_by) REFERENCES users (id)
+        )
+    ''')
+    
+    # Files table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_name TEXT NOT NULL,
+            file_key TEXT NOT NULL,
+            folder_id INTEGER NOT NULL,
+            uploaded_by INTEGER NOT NULL,
+            upload_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            file_size INTEGER,
+            FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE,
+            FOREIGN KEY (uploaded_by) REFERENCES users (id)
+        )
+    ''')
+    
+    # User permissions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_permissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            folder_id INTEGER NOT NULL,
+            permission_level TEXT NOT NULL DEFAULT 'read',
+            granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            granted_by INTEGER,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            FOREIGN KEY (folder_id) REFERENCES folders (id) ON DELETE CASCADE,
+            FOREIGN KEY (granted_by) REFERENCES users (id),
+            UNIQUE(user_id, folder_id)
+        )
+    ''')
+    
+    # Password reset tokens table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token TEXT NOT NULL UNIQUE,
+            expires_at TIMESTAMP NOT NULL,
+            used BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    ''')
+    
+    # Create default admin user if it doesn't exist
+    cursor.execute('SELECT * FROM users WHERE username = ?', ('admin',))
+    if not cursor.fetchone():
+        admin_password = hash_password('admin123')
+        cursor.execute('''
+            INSERT INTO users (username, email, password_hash, is_admin, is_active)
+            VALUES (?, ?, ?, ?, ?)
+        ''', ('admin', 'admin@example.com', admin_password, 1, 1))
+    
+    conn.commit()
+    conn.close()
 
-# Database Models
-class User(UserMixin, db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)
-    is_active = db.Column(db.Boolean, default=True)
-    is_admin = db.Column(db.Boolean, default=False)
-    reset_token = db.Column(db.String(100), nullable=True)
-    reset_token_expiry = db.Column(db.DateTime, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+def hash_password(password):
+    """Hash a password for storing"""
+    return hashlib.sha256(password.encode()).hexdigest()
 
-    def __repr__(self):
-        return f'<User {self.username}>'
+def verify_password(stored_password, provided_password):
+    """Verify a stored password against provided password"""
+    return stored_password == hashlib.sha256(provided_password.encode()).hexdigest()
 
-class Folder(db.Model):
-    __tablename__ = 'folders'
-    id = db.Column(db.Integer, primary_key=True)
-    folder_name = db.Column(db.String(255), nullable=False)
-    folder_path = db.Column(db.String(500), nullable=False)
-    parent_folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'))
-    created_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    description = db.Column(db.Text)
+def require_login(f):
+    """Decorator to require login"""
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'success': False, 'message': 'Authentication required'}), 401
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
 
-    def __repr__(self):
-        return f'<Folder {self.folder_name}>'
-
-class PDFFile(db.Model):
-    __tablename__ = 'pdf_files'
-    id = db.Column(db.Integer, primary_key=True)
-    filename = db.Column(db.String(255), nullable=False)
-    original_name = db.Column(db.String(255), nullable=False)
-    s3_key = db.Column(db.String(500), nullable=False)
-    folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=False)
-    file_size = db.Column(db.BigInteger, default=0)
-    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
-    uploaded_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-
-    def __repr__(self):
-        return f'<PDFFile {self.original_name}>'
-
-class FolderPermission(db.Model):
-    __tablename__ = 'folder_permissions'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=False)
-    permission_level = db.Column(db.String(20), default='view')  # 'view' or 'admin'
-    granted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
-    granted_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def __repr__(self):
-        return f'<FolderPermission user_id={self.user_id} folder_id={self.folder_id}>'
-
-@login_manager.user_loader
-def load_user(user_id):
-    try:
-        return db.session.get(User, int(user_id))
-    except Exception as e:
-        logger.error(f"Error loading user {user_id}: {e}")
-        return None
-
-# Helper Functions
-def generate_random_password(length=10):
-    """Generate a random password"""
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(secrets.choice(characters) for _ in range(length))
+def require_admin(f):
+    """Decorator to require admin privileges"""
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return jsonify({'success': False, 'message': 'Authentication required'}), 401
+        
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute('SELECT is_admin FROM users WHERE id = ?', (session['user_id'],))
+        user = cursor.fetchone()
+        conn.close()
+        
+        if not user or not user[0]:
+            return jsonify({'success': False, 'message': 'Admin privileges required'}), 403
+        
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
 
 def send_email(to_email, subject, body):
     """Send email using SMTP"""
-    try:
-        if not all([SMTP_SERVER, SMTP_USERNAME, SMTP_PASSWORD]):
-            logger.error("Email credentials not configured")
-            return False
-            
-        msg = MIMEMultipart()
-        msg['From'] = SENDER_EMAIL
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        
-        msg.attach(MIMEText(body, 'plain'))
-        
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USERNAME, SMTP_PASSWORD)
-            server.send_message(msg)
-        
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send email: {e}")
-        return False
-
-# Decorator for admin-only routes
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
-            return jsonify({'error': 'Admin access required'}), 403
-        return f(*args, **kwargs)
-    return decorated_function
-
-def user_has_folder_permission(user_id, folder_id, required_level='view'):
-    try:
-        # Admins have access to everything
-        user = db.session.get(User, user_id)
-        if user and user.is_admin:
-            return True
-            
-        permission = FolderPermission.query.filter_by(
-            user_id=user_id, 
-            folder_id=folder_id
-        ).first()
-        
-        if not permission:
-            return False
-        
-        # Permission mapping
-        level_hierarchy = {'read': 1, 'view': 1, 'write': 2, 'admin': 3}
-        user_level = level_hierarchy.get(permission.permission_level, 0)
-        required_level_num = level_hierarchy.get(required_level, 1)
-        
-        return user_level >= required_level_num
-    except Exception as e:
-        logger.error(f"Error checking folder permission: {e}")
-        return False
-
-def upload_to_s3(file_obj, s3_key):
-    if not s3_client:
-        logger.error("S3 client not initialized")
-        return False
+    if not all([SMTP_USERNAME, SMTP_PASSWORD, SENDER_EMAIL]):
+        raise Exception("Email configuration not complete")
     
-    try:
-        s3_client.upload_fileobj(
-            file_obj,
-            S3_BUCKET,
-            s3_key,
-            ExtraArgs={'ContentType': 'application/pdf'}
-        )
-        return True
-    except Exception as e:
-        logger.error(f"S3 upload error: {e}")
-        return False
-
-def get_pdf_from_s3(s3_key):
-    """Fetch PDF content from S3 and return as bytes"""
-    if not s3_client:
-        logger.error("S3 client not initialized")
-        return None
+    msg = MIMEMultipart()
+    msg['From'] = SENDER_EMAIL
+    msg['To'] = to_email
+    msg['Subject'] = subject
     
-    try:
-        response = s3_client.get_object(Bucket=S3_BUCKET, Key=s3_key)
-        return response['Body'].read()
-    except ClientError as e:
-        logger.error(f"S3 download error: {e}")
-        return None
-
-def check_and_add_missing_columns():
-    """Check if required columns exist and add them if missing"""
-    try:
-        # Check if reset_token columns exist in users table
-        inspector = db.inspect(db.engine)
-        columns = [col['name'] for col in inspector.get_columns('users')]
-        
-        missing_columns = []
-        if 'reset_token' not in columns:
-            missing_columns.append('reset_token')
-        if 'reset_token_expiry' not in columns:
-            missing_columns.append('reset_token_expiry')
-        
-        if missing_columns:
-            logger.info(f"Adding missing columns to users table: {missing_columns}")
-            
-            # Use raw SQL to add missing columns
-            with db.engine.connect() as conn:
-                if 'reset_token' not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(100)"))
-                if 'reset_token_expiry' not in columns:
-                    conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_expiry TIMESTAMP"))
-                conn.commit()
-            
-            logger.info("Missing columns added successfully")
-        else:
-            logger.info("All required columns exist")
-            
-        return True
-    except Exception as e:
-        logger.error(f"Error checking/adding columns: {e}")
-        return False
-
-# Initialize database BEFORE routes
-def init_db():
-    """Initialize the database and create default admin user"""
-    try:
-        logger.info("Starting database initialization...")
-        
-        # Create all tables
-        db.create_all()
-        logger.info("Database tables created successfully")
-        
-        # Check and add missing columns for existing databases
-        check_and_add_missing_columns()
-        
-        # Check if admin user exists
-        existing_admin = User.query.filter_by(username='admin').first()
-        if existing_admin:
-            logger.info("Admin user already exists")
-            # Verify password hash is correct
-            if not check_password_hash(existing_admin.password_hash, 'admin123'):
-                logger.info("Updating admin password hash...")
-                existing_admin.password_hash = generate_password_hash('admin123')
-                existing_admin.is_admin = True
-                existing_admin.is_active = True
-                db.session.commit()
-                logger.info("Admin password updated")
-        else:
-            # Create default admin user
-            logger.info("Creating default admin user...")
-            admin_user = User(
-                username='admin',
-                email='admin@example.com',
-                password_hash=generate_password_hash('admin123'),
-                is_admin=True,
-                is_active=True
-            )
-            db.session.add(admin_user)
-            db.session.commit()
-            logger.info("Default admin user created successfully")
-        
-        logger.info("Database initialization completed successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Database initialization failed: {e}")
-        try:
-            db.session.rollback()
-        except:
-            pass
-        return False
+    msg.attach(MIMEText(body, 'html'))
+    
+    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server.starttls()
+    server.login(SMTP_USERNAME, SMTP_PASSWORD)
+    text = msg.as_string()
+    server.sendmail(SENDER_EMAIL, to_email, text)
+    server.quit()
 
 # Routes
 @app.route('/')
 def index():
-    try:
-        if current_user.is_authenticated:
-            if current_user.is_admin:
-                return render_template('admin_dashboard.html')
-            else:
-                return render_template('user_dashboard.html')
-        return render_template('login.html')
-    except Exception as e:
-        logger.error(f"Error in index route: {e}")
-        return render_template('login.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        try:
-            data = request.get_json()
-            logger.info(f"Login attempt received: {data}")
-            
-            if not data:
-                logger.error("No data provided in login request")
-                return jsonify({'success': False, 'message': 'No data provided'}), 400
-            
-            username = data.get('username', '').strip()
-            password = data.get('password', '')
-            
-            logger.info(f"Login attempt for username: '{username}'")
-            
-            if not username or not password:
-                logger.warning("Username or password missing")
-                return jsonify({'success': False, 'message': 'Username and password required'}), 400
-            
-            # Query user with exact username match
-            user = User.query.filter_by(username=username).first()
-            logger.info(f"User query result: {user is not None}")
-            
-            if user:
-                logger.info(f"User found: {user.username}, Active: {user.is_active}, Admin: {user.is_admin}")
-                
-                if not user.is_active:
-                    logger.warning(f"User {username} is inactive")
-                    return jsonify({'success': False, 'message': 'Account is inactive'}), 401
-                
-                # Check password
-                password_valid = check_password_hash(user.password_hash, password)
-                logger.info(f"Password validation result: {password_valid}")
-                
-                if password_valid:
-                    login_user(user, remember=True)
-                    logger.info(f"User {username} logged in successfully")
-                    return jsonify({
-                        'success': True, 
-                        'message': 'Login successful',
-                        'redirect': '/admin' if user.is_admin else '/dashboard'
-                    })
-                else:
-                    logger.warning(f"Invalid password for user: {username}")
-            else:
-                logger.warning(f"User not found: {username}")
-                # Let's check all users in database for debugging
-                all_users = User.query.all()
-                logger.info(f"All users in database: {[(u.id, u.username) for u in all_users]}")
-            
-            return jsonify({'success': False, 'message': 'Invalid username or password'}), 401
-            
-        except Exception as e:
-            logger.error(f"Login error: {e}")
-            return jsonify({'success': False, 'message': 'Login failed due to server error'}), 500
+    """Main route - redirect based on login status"""
+    if 'user_id' not in session:
+        return redirect('/login')
     
-    return render_template('login.html')
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('SELECT is_admin FROM users WHERE id = ?', (session['user_id'],))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if user and user[0]:  # is_admin
+        return redirect('/admin')
+    else:
+        return redirect('/dashboard')
 
-@app.route('/forgot-password', methods=['POST'])
-def forgot_password():
+@app.route('/login')
+def login_page():
+    """Serve login page"""
+    # You'll need to put your login HTML here or serve it from a file
+    return '''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>PDF Management - Login</title>
+        <style>
+            body { font-family: Arial, sans-serif; background: #f5f5f5; }
+            .login-container { max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .form-group { margin-bottom: 20px; }
+            label { display: block; margin-bottom: 5px; font-weight: bold; }
+            input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+            button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+            button:hover { background: #0056b3; }
+            .error { color: red; margin-top: 10px; }
+            .success { color: green; margin-top: 10px; }
+            .forgot-link { text-align: center; margin-top: 20px; }
+            .forgot-link a { color: #007bff; text-decoration: none; }
+            .forgot-link a:hover { text-decoration: underline; }
+            .back-to-login { text-align: center; margin-top: 15px; }
+            .back-to-login a { color: #6c757d; text-decoration: none; font-size: 14px; }
+            .back-to-login a:hover { text-decoration: underline; }
+        </style>
+    </head>
+    <body>
+        <!-- Login Form -->
+        <div class="login-container" id="loginContainer">
+            <h2>PDF Management System</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit">Login</button>
+            </form>
+            <div class="error" id="error-message"></div>
+            <div class="forgot-link">
+                <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+            </div>
+        </div>
+
+        <!-- Forgot Password Form -->
+        <div class="login-container" id="forgotPasswordContainer" style="display: none;">
+            <h2>Reset Password</h2>
+            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                Enter your email address and we'll send you instructions to reset your password.
+            </p>
+            <form id="forgotPasswordForm">
+                <div class="form-group">
+                    <label for="reset_email">Email Address:</label>
+                    <input type="email" id="reset_email" name="email" required placeholder="Enter your email address">
+                </div>
+                <button type="submit">Send Reset Instructions</button>
+            </form>
+            <div class="error" id="forgot-error-message"></div>
+            <div class="success" id="forgot-success-message"></div>
+            <div class="back-to-login">
+                <a href="#" onclick="showLogin()">← Back to Login</a>
+            </div>
+        </div>
+
+        <script>
+            // Login form submission
+            document.getElementById('loginForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                document.getElementById('error-message').textContent = '';
+                
+                try {
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        window.location.href = '/';
+                    } else {
+                        document.getElementById('error-message').textContent = data.message || 'Invalid username or password';
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    document.getElementById('error-message').textContent = 'Login failed. Please try again.';
+                }
+            });
+
+            // Forgot password form submission
+            document.getElementById('forgotPasswordForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const email = document.getElementById('reset_email').value;
+                
+                document.getElementById('forgot-error-message').textContent = '';
+                document.getElementById('forgot-success-message').textContent = '';
+                
+                try {
+                    const response = await fetch('/api/password-reset', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        document.getElementById('forgot-success-message').textContent = 
+                            'Password reset instructions have been sent to your email address. Please check your inbox and follow the instructions to reset your password.';
+                        document.getElementById('reset_email').value = '';
+                    } else {
+                        document.getElementById('forgot-error-message').textContent = 
+                            data.message || 'Unable to send reset instructions. Please check your email address and try again.';
+                    }
+                } catch (error) {
+                    console.error('Password reset error:', error);
+                    document.getElementById('forgot-error-message').textContent = 
+                        'Password reset service is currently unavailable. Please contact your administrator for assistance.';
+                }
+            });
+
+            function showForgotPassword() {
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('forgotPasswordContainer').style.display = 'block';
+                
+                document.getElementById('forgot-error-message').textContent = '';
+                document.getElementById('forgot-success-message').textContent = '';
+                document.getElementById('reset_email').value = '';
+            }
+
+            function showLogin() {
+                document.getElementById('loginContainer').style.display = 'block';
+                document.getElementById('forgotPasswordContainer').style.display = 'none';
+                
+                document.getElementById('error-message').textContent = '';
+            }
+
+            document.getElementById('username').addEventListener('input', function() {
+                document.getElementById('error-message').textContent = '';
+            });
+
+            document.getElementById('password').addEventListener('input', function() {
+                document.getElementById('error-message').textContent = '';
+            });
+
+            document.getElementById('reset_email').addEventListener('input', function() {
+                document.getElementById('forgot-error-message').textContent = '';
+                document.getElementById('forgot-success-message').textContent = '';
+            });
+        </script>
+    </body>
+    </html>
+    '''
+
+@app.route('/admin')
+@require_admin
+def admin_dashboard():
+    """Serve admin dashboard"""
+    # You'll need to put your admin dashboard HTML here or serve it from a file
+    return "Admin Dashboard HTML goes here"
+
+@app.route('/dashboard')
+@require_login
+def user_dashboard():
+    """Serve user dashboard"""
+    return "User Dashboard HTML goes here"
+
+@app.route('/login', methods=['POST'])
+def login():
+    """Handle login requests"""
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+    
+    if not username or not password:
+        return jsonify({'success': False, 'message': 'Username and password required'})
+    
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, password_hash, is_active FROM users WHERE username = ?', (username,))
+    user = cursor.fetchone()
+    conn.close()
+    
+    if user and user[2] and verify_password(user[1], password):  # user exists, is active, password matches
+        session['user_id'] = user[0]
+        return jsonify({'success': True})
+    else:
+        return jsonify({'success': False, 'message': 'Invalid credentials or account disabled'})
+
+@app.route('/logout', methods=['POST', 'GET'])
+def logout():
+    """Handle logout"""
+    session.clear()
+    return jsonify({'success': True})
+
+@app.route('/api/password-reset', methods=['POST'])
+def password_reset():
+    """Handle password reset requests"""
     try:
         data = request.get_json()
         email = data.get('email')
         
         if not email:
-            return jsonify({'success': False, 'message': 'Email required'}), 400
+            return jsonify({'success': False, 'message': 'Email is required'})
         
-        user = User.query.filter_by(email=email).first()
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute('SELECT id, username FROM users WHERE email = ?', (email,))
+        user = cursor.fetchone()
         
         if not user:
-            # Don't reveal if email exists or not for security
-            return jsonify({'success': True, 'message': 'If the email exists, a password reset has been sent.'})
+            return jsonify({'success': False, 'message': 'Email address not found'})
         
-        # Generate new password
-        new_password = generate_random_password()
-        user.password_hash = generate_password_hash(new_password)
-        db.session.commit()
+        # Generate reset token
+        token = secrets.token_urlsafe(32)
+        expires_at = datetime.now() + timedelta(hours=24)
         
-        # Send email with new password
-        email_body = f"""
-Hello {user.username},
-
-Your password has been reset. Your new password is:
-
-{new_password}
-
-Please login with this password and change it immediately for security.
-
-Best regards,
-PDF Management System
+        # Store token
+        cursor.execute('''
+            INSERT INTO password_reset_tokens (user_id, token, expires_at)
+            VALUES (?, ?, ?)
+        ''', (user[0], token, expires_at))
+        conn.commit()
+        conn.close()
+        
+        # Send email
+        reset_url = f"{request.host_url}reset-password?token={token}"
+        subject = "Password Reset Request - PDF Management System"
+        body = f"""
+        <html>
+        <body>
+            <h2>Password Reset Request</h2>
+            <p>Hello {user[1]},</p>
+            <p>You have requested to reset your password for the PDF Management System.</p>
+            <p>Click the link below to reset your password:</p>
+            <p><a href="{reset_url}">Reset Password</a></p>
+            <p>This link will expire in 24 hours.</p>
+            <p>If you did not request this reset, please ignore this email.</p>
+        </body>
+        </html>
         """
         
-        email_sent = send_email(user.email, 'Password Reset - PDF Management System', email_body)
+        send_email(email, subject, body)
         
-        if email_sent:
-            return jsonify({'success': True, 'message': 'New password has been sent to your email.'})
-        else:
-            # If email fails, still save the password but inform user
-            return jsonify({'success': True, 'message': 'Password reset. Contact admin if you did not receive the email.'})
-            
-    except Exception as e:
-        logger.error(f"Password reset error: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Password reset failed'}), 500
-
-@app.route('/register', methods=['POST'])
-def register():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
-        
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-        
-        if not all([username, email, password]):
-            return jsonify({'success': False, 'message': 'All fields required'}), 400
-        
-        if User.query.filter_by(username=username).first():
-            return jsonify({'success': False, 'message': 'Username already exists'}), 400
-        
-        if User.query.filter_by(email=email).first():
-            return jsonify({'success': False, 'message': 'Email already exists'}), 400
-        
-        user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password),
-            is_admin=False
-        )
-        
-        db.session.add(user)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Registration successful'})
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Registration failed'}), 500
-
-@app.route('/logout')
-@login_required
-def logout():
-    try:
-        logout_user()
-        return jsonify({'success': True, 'message': 'Logged out successfully'})
-    except Exception as e:
-        logger.error(f"Logout error: {e}")
-        return jsonify({'success': False, 'message': 'Logout failed'}), 500
-
-# Admin routes
-@app.route('/admin')
-@login_required
-@admin_required
-def admin_dashboard():
-    return render_template('admin_dashboard.html')
-
-@app.route('/dashboard')
-@login_required
-def user_dashboard():
-    return render_template('user_dashboard.html')
-
-# Folder Management Routes
-@app.route('/api/folders', methods=['GET'])
-@login_required
-def get_folders():
-    try:
-        if current_user.is_admin:
-            folders = Folder.query.all()
-            folders_data = []
-            for folder in folders:
-                folders_data.append({
-                    'id': folder.id,
-                    'folder_name': folder.folder_name,
-                    'folder_path': folder.folder_path,
-                    'parent_folder_id': folder.parent_folder_id,
-                    'created_at': folder.created_at.isoformat(),
-                    'description': folder.description,
-                    'permission_level': 'admin'
-                })
-        else:
-            # Get folders user has permission to
-            user_folders = db.session.query(Folder).join(FolderPermission).filter(
-                FolderPermission.user_id == current_user.id
-            ).all()
-            
-            folders_data = []
-            for folder in user_folders:
-                permission = FolderPermission.query.filter_by(
-                    user_id=current_user.id,
-                    folder_id=folder.id
-                ).first()
-                
-                folders_data.append({
-                    'id': folder.id,
-                    'folder_name': folder.folder_name,
-                    'folder_path': folder.folder_path,
-                    'parent_folder_id': folder.parent_folder_id,
-                    'created_at': folder.created_at.isoformat(),
-                    'description': folder.description,
-                    'permission_level': permission.permission_level if permission else 'view'
-                })
-        
-        return jsonify({'folders': folders_data})
-    except Exception as e:
-        logger.error(f"Error getting folders: {e}")
-        return jsonify({'error': 'Failed to fetch folders'}), 500
-
-@app.route('/create_folder', methods=['POST'])
-@login_required
-@admin_required
-def create_folder():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
-        
-        folder_name = data.get('folder_name')
-        parent_folder_id = data.get('parent_folder_id')
-        description = data.get('description', '')
-        
-        if not folder_name:
-            return jsonify({'success': False, 'message': 'Folder name required'}), 400
-        
-        # Build folder path
-        if parent_folder_id:
-            parent_folder = db.session.get(Folder, parent_folder_id)
-            if not parent_folder:
-                return jsonify({'success': False, 'message': 'Parent folder not found'}), 400
-            folder_path = f"{parent_folder.folder_path}/{folder_name}"
-        else:
-            folder_path = folder_name
-        
-        folder = Folder(
-            folder_name=folder_name,
-            folder_path=folder_path,
-            parent_folder_id=parent_folder_id,
-            created_by=current_user.id,
-            description=description
-        )
-        
-        db.session.add(folder)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Folder created successfully'})
-    except Exception as e:
-        logger.error(f"Error creating folder: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to create folder'}), 500
-
-# File Management Routes
-@app.route('/folders/<int:folder_id>/files')
-@login_required
-def get_folder_files(folder_id):
-    try:
-        # Check permission
-        if not current_user.is_admin and not user_has_folder_permission(current_user.id, folder_id, 'view'):
-            return jsonify({'success': False, 'message': 'Access denied'}), 403
-        
-        files = PDFFile.query.filter_by(folder_id=folder_id).all()
-        files_data = []
-        
-        for file in files:
-            files_data.append({
-                'id': file.id,
-                'filename': file.filename,
-                'original_name': file.original_name,
-                'file_size': file.file_size,
-                'upload_date': file.upload_date.isoformat()
-            })
-        
-        return jsonify({'success': True, 'files': files_data})
-    except Exception as e:
-        logger.error(f"Error getting folder files: {e}")
-        return jsonify({'success': False, 'error': 'Failed to fetch files'}), 500
-
-@app.route('/upload/<int:folder_id>', methods=['POST'])
-@login_required
-def upload_files(folder_id):
-    try:
-        # Check permission
-        if not current_user.is_admin and not user_has_folder_permission(current_user.id, folder_id, 'write'):
-            return jsonify({'error': 'Upload permission required'}), 403
-        
-        if not s3_client:
-            return jsonify({'error': 'File upload not configured'}), 500
-        
-        if 'files' not in request.files:
-            return jsonify({'error': 'No files provided'}), 400
-        
-        files = request.files.getlist('files')
-        uploaded_count = 0
-        
-        for file in files:
-            if file and file.filename.lower().endswith('.pdf'):
-                # Generate unique filename
-                file_uuid = str(uuid.uuid4())
-                s3_key = f"pdfs/{folder_id}/{file_uuid}_{secure_filename(file.filename)}"
-                
-                # Reset file pointer
-                file.seek(0)
-                file_content = file.read()
-                file_size = len(file_content)
-                file.seek(0)
-                
-                # Upload to S3
-                if upload_to_s3(file, s3_key):
-                    # Save file record to database
-                    pdf_file = PDFFile(
-                        filename=f"{file_uuid}_{secure_filename(file.filename)}",
-                        original_name=file.filename,
-                        s3_key=s3_key,
-                        folder_id=folder_id,
-                        file_size=file_size,
-                        uploaded_by=current_user.id
-                    )
-                    
-                    db.session.add(pdf_file)
-                    uploaded_count += 1
-        
-        db.session.commit()
-        return jsonify({'success': True, 'uploaded': uploaded_count, 'message': f'Uploaded {uploaded_count} files'})
+        return jsonify({'success': True, 'message': 'Password reset instructions sent'})
         
     except Exception as e:
-        logger.error(f"Error uploading files: {e}")
-        db.session.rollback()
-        return jsonify({'error': 'Upload failed'}), 500
+        print(f"Password reset error: {e}")
+        return jsonify({'success': False, 'message': 'Failed to send reset instructions'})
 
-@app.route('/view/<int:file_id>')
-@login_required
-def view_pdf(file_id):
-    try:
-        pdf_file = db.session.get(PDFFile, file_id)
-        if not pdf_file:
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Check permission
-        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'view'):
-            return jsonify({'error': 'Access denied'}), 403
-        
-        return render_template('pdf_viewer.html', 
-                             file_id=file_id, 
-                             filename=pdf_file.original_name)
-    except Exception as e:
-        logger.error(f"Error viewing PDF: {e}")
-        return jsonify({'error': 'Failed to view PDF'}), 500
-
-@app.route('/pdf/<int:file_id>')
-@login_required
-def serve_pdf(file_id):
-    """Serve PDF content directly through Flask with view-only headers"""
-    try:
-        pdf_file = db.session.get(PDFFile, file_id)
-        if not pdf_file:
-            return jsonify({'error': 'File not found'}), 404
-        
-        # Check permission
-        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'view'):
-            return jsonify({'error': 'Access denied'}), 403
-        
-        # Fetch PDF content from S3
-        pdf_content = get_pdf_from_s3(pdf_file.s3_key)
-        
-        if pdf_content is None:
-            return jsonify({'error': 'Could not retrieve PDF'}), 500
-        
-        # Create response with view-only headers
-        response = Response(
-            pdf_content,
-            mimetype='application/pdf',
-            headers={
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': 'inline; filename="view-only.pdf"',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'SAMEORIGIN'
-            }
-        )
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error serving PDF: {e}")
-        return jsonify({'error': 'Failed to serve PDF'}), 500
-
-# User Management Routes (Admin only)
+# User Management APIs
 @app.route('/api/users', methods=['GET'])
-@login_required
-@admin_required
-def get_all_users():
-    try:
-        users = User.query.all()
-        users_data = []
-        for user in users:
-            users_data.append({
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'is_active': user.is_active,
-                'is_admin': user.is_admin,
-                'created_at': user.created_at.isoformat()
-            })
-        return jsonify({'users': users_data})
-    except Exception as e:
-        logger.error(f"Error getting users: {e}")
-        return jsonify({'error': 'Failed to fetch users'}), 500
+@require_admin
+def get_users():
+    """Get all users"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT id, username, email, is_admin, is_active, created_at
+        FROM users ORDER BY created_at DESC
+    ''')
+    users = cursor.fetchall()
+    conn.close()
+    
+    user_list = []
+    for user in users:
+        user_list.append({
+            'id': user[0],
+            'username': user[1],
+            'email': user[2],
+            'is_admin': bool(user[3]),
+            'is_active': bool(user[4]),
+            'created_at': user[5]
+        })
+    
+    return jsonify({'success': True, 'users': user_list})
 
 @app.route('/api/users', methods=['POST'])
-@login_required
-@admin_required
+@require_admin
 def create_user():
+    """Create new user"""
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+    is_admin = data.get('is_admin', False)
+    is_active = data.get('is_active', True)
+    
+    if not all([username, email, password]):
+        return jsonify({'success': False, 'message': 'Username, email, and password required'})
+    
+    password_hash = hash_password(password)
+    
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
-        
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-        is_admin = data.get('is_admin', False)
-        
-        if not all([username, email, password]):
-            return jsonify({'success': False, 'message': 'All fields required'}), 400
-        
-        if User.query.filter_by(username=username).first():
-            return jsonify({'success': False, 'message': 'Username already exists'}), 400
-        
-        if User.query.filter_by(email=email).first():
-            return jsonify({'success': False, 'message': 'Email already exists'}), 400
-        
-        user = User(
-            username=username,
-            email=email,
-            password_hash=generate_password_hash(password),
-            is_admin=is_admin
-        )
-        
-        db.session.add(user)
-        db.session.commit()
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO users (username, email, password_hash, is_admin, is_active)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (username, email, password_hash, is_admin, is_active))
+        conn.commit()
+        conn.close()
         
         return jsonify({'success': True, 'message': 'User created successfully'})
-    except Exception as e:
-        logger.error(f"Error creating user: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to create user'}), 500
+    except sqlite3.IntegrityError:
+        return jsonify({'success': False, 'message': 'Username or email already exists'})
 
 @app.route('/api/users/<int:user_id>', methods=['PUT'])
-@login_required
-@admin_required
+@require_admin
 def update_user(user_id):
+    """Update user"""
+    data = request.get_json()
+    username = data.get('username')
+    email = data.get('email')
+    password = data.get('password')
+    is_admin = data.get('is_admin', False)
+    is_active = data.get('is_active', True)
+    
+    if not all([username, email]):
+        return jsonify({'success': False, 'message': 'Username and email required'})
+    
     try:
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'success': False, 'message': 'User not found'}), 404
-            
-        data = request.get_json()
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
         
-        if 'username' in data:
-            existing_user = User.query.filter_by(username=data['username']).first()
-            if existing_user and existing_user.id != user_id:
-                return jsonify({'success': False, 'message': 'Username already exists'}), 400
-            user.username = data['username']
+        if password:
+            password_hash = hash_password(password)
+            cursor.execute('''
+                UPDATE users SET username = ?, email = ?, password_hash = ?, is_admin = ?, is_active = ?
+                WHERE id = ?
+            ''', (username, email, password_hash, is_admin, is_active, user_id))
+        else:
+            cursor.execute('''
+                UPDATE users SET username = ?, email = ?, is_admin = ?, is_active = ?
+                WHERE id = ?
+            ''', (username, email, is_admin, is_active, user_id))
         
-        if 'email' in data:
-            existing_user = User.query.filter_by(email=data['email']).first()
-            if existing_user and existing_user.id != user_id:
-                return jsonify({'success': False, 'message': 'Email already exists'}), 400
-            user.email = data['email']
+        conn.commit()
+        conn.close()
         
-        if 'is_active' in data:
-            user.is_active = data['is_active']
-        
-        if 'is_admin' in data:
-            user.is_admin = data['is_admin']
-        
-        if 'password' in data and data['password']:
-            user.password_hash = generate_password_hash(data['password'])
-        
-        db.session.commit()
         return jsonify({'success': True, 'message': 'User updated successfully'})
-    except Exception as e:
-        logger.error(f"Error updating user: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to update user'}), 500
+    except sqlite3.IntegrityError:
+        return jsonify({'success': False, 'message': 'Username or email already exists'})
 
 @app.route('/api/users/<int:user_id>', methods=['DELETE'])
-@login_required
-@admin_required
+@require_admin
 def delete_user(user_id):
-    try:
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'success': False, 'message': 'User not found'}), 404
-        
-        # Prevent deleting yourself
-        if user.id == current_user.id:
-            return jsonify({'success': False, 'message': 'Cannot delete your own account'}), 400
-        
-        # Prevent deleting the last admin
-        if user.is_admin:
-            admin_count = User.query.filter_by(is_admin=True, is_active=True).count()
-            if admin_count <= 1:
-                return jsonify({'success': False, 'message': 'Cannot delete the last admin user'}), 400
-        
-        # Delete user's permissions first
-        FolderPermission.query.filter_by(user_id=user_id).delete()
-        
-        db.session.delete(user)
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'User deleted successfully'})
-    except Exception as e:
-        logger.error(f"Error deleting user: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to delete user'}), 500
+    """Delete user"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'User deleted successfully'})
 
-# File Management (Admin)
-@app.route('/api/files', methods=['GET'])
-@login_required
-@admin_required
-def get_all_files():
+# Folder Management APIs
+@app.route('/api/folders', methods=['GET'])
+@require_login
+def get_folders():
+    """Get all folders"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT f.id, f.folder_name, f.folder_path, f.description, f.created_at,
+               CASE WHEN up.permission_level IS NOT NULL THEN up.permission_level ELSE 'none' END as permission_level
+        FROM folders f
+        LEFT JOIN user_permissions up ON f.id = up.folder_id AND up.user_id = ?
+        ORDER BY f.created_at DESC
+    ''', (session['user_id'],))
+    folders = cursor.fetchall()
+    conn.close()
+    
+    folder_list = []
+    for folder in folders:
+        folder_list.append({
+            'id': folder[0],
+            'folder_name': folder[1],
+            'folder_path': folder[2] or '',
+            'description': folder[3] or '',
+            'created_at': folder[4],
+            'permission_level': folder[5]
+        })
+    
+    return jsonify({'success': True, 'folders': folder_list})
+
+@app.route('/create_folder', methods=['POST'])
+@require_admin
+def create_folder():
+    """Create new folder"""
+    data = request.get_json()
+    folder_name = data.get('folder_name')
+    folder_path = data.get('folder_path')
+    description = data.get('description')
+    
+    if not folder_name:
+        return jsonify({'success': False, 'message': 'Folder name required'})
+    
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO folders (folder_name, folder_path, description, created_by)
+        VALUES (?, ?, ?, ?)
+    ''', (folder_name, folder_path, description, session['user_id']))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Folder created successfully'})
+
+@app.route('/api/folders/<int:folder_id>', methods=['PUT'])
+@require_admin
+def update_folder(folder_id):
+    """Update folder"""
+    data = request.get_json()
+    folder_name = data.get('folder_name')
+    folder_path = data.get('folder_path')
+    
+    if not folder_name:
+        return jsonify({'success': False, 'message': 'Folder name required'})
+    
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE folders SET folder_name = ?, folder_path = ?
+        WHERE id = ?
+    ''', (folder_name, folder_path, folder_id))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({'success': True, 'message': 'Folder updated successfully'})
+
+@app.route('/api/folders/<int:folder_id>', methods=['DELETE'])
+@require_admin
+def delete_folder(folder_id):
+    """Delete folder and all its files"""
     try:
-        files = PDFFile.query.join(Folder).all()
-        files_data = []
-        for file in files:
-            folder = db.session.get(Folder, file.folder_id)
-            uploader = db.session.get(User, file.uploaded_by)
-            files_data.append({
-                'id': file.id,
-                'original_name': file.original_name,
-                'folder_name': folder.folder_name if folder else 'Unknown',
-                'upload_date': file.upload_date.isoformat(),
-                'uploaded_by': uploader.username if uploader else 'Unknown',
-                'file_size': file.file_size
-            })
-        return jsonify({'files': files_data})
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        # Get all files in the folder for S3 cleanup
+        cursor.execute('SELECT file_key FROM files WHERE folder_id = ?', (folder_id,))
+        files = cursor.fetchall()
+        
+        # Delete files from S3
+        if s3_client and files:
+            for file in files:
+                try:
+                    s3_client.delete_object(Bucket=S3_BUCKET, Key=file[0])
+                except Exception as e:
+                    print(f"Error deleting file from S3: {e}")
+        
+        # Delete folder (CASCADE will handle files and permissions)
+        cursor.execute('DELETE FROM folders WHERE id = ?', (folder_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Folder deleted successfully'})
     except Exception as e:
-        logger.error(f"Error getting files: {e}")
-        return jsonify({'error': 'Failed to fetch files'}), 500
+        return jsonify({'success': False, 'message': str(e)})
+
+# File Management APIs
+@app.route('/api/files', methods=['GET'])
+@require_login
+def get_files():
+    """Get all files user has access to"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT f.id, f.original_name, f.upload_date, f.file_size,
+               fo.folder_name, u.username as uploaded_by
+        FROM files f
+        JOIN folders fo ON f.folder_id = fo.id
+        JOIN users u ON f.uploaded_by = u.id
+        LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = ?
+        WHERE up.permission_level IS NOT NULL OR u.id = ?
+        ORDER BY f.upload_date DESC
+    ''', (session['user_id'], session['user_id']))
+    files = cursor.fetchall()
+    conn.close()
+    
+    file_list = []
+    for file in files:
+        file_list.append({
+            'id': file[0],
+            'original_name': file[1],
+            'upload_date': file[2],
+            'file_size': file[3],
+            'folder_name': file[4],
+            'uploaded_by': file[5]
+        })
+    
+    return jsonify({'success': True, 'files': file_list})
 
 @app.route('/api/files/<int:file_id>', methods=['DELETE'])
-@login_required
+@require_login
 def delete_file(file_id):
+    """Delete a file"""
     try:
-        pdf_file = db.session.get(PDFFile, file_id)
-        if not pdf_file:
-            return jsonify({'error': 'File not found'}), 404
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
         
-        # Check permission
-        if not current_user.is_admin and not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'admin'):
-            return jsonify({'error': 'Delete permission required'}), 403
+        # Get file info for S3 cleanup
+        cursor.execute('SELECT file_key FROM files WHERE id = ?', (file_id,))
+        file = cursor.fetchone()
         
-        # Delete from S3
-        if s3_client:
-            try:
-                s3_client.delete_object(Bucket=S3_BUCKET, Key=pdf_file.s3_key)
-            except Exception as e:
-                logger.error(f"Error deleting from S3: {e}")
+        if file:
+            # Delete from S3
+            if s3_client:
+                try:
+                    s3_client.delete_object(Bucket=S3_BUCKET, Key=file[0])
+                except Exception as e:
+                    print(f"Error deleting file from S3: {e}")
+            
+            # Delete from database
+            cursor.execute('DELETE FROM files WHERE id = ?', (file_id,))
+            conn.commit()
         
-        # Delete from database
-        db.session.delete(pdf_file)
-        db.session.commit()
-        
+        conn.close()
         return jsonify({'success': True, 'message': 'File deleted successfully'})
-    
     except Exception as e:
-        logger.error(f"Error deleting file: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to delete file'}), 500
+        return jsonify({'success': False, 'message': str(e)})
 
-# Permission Management Routes
-@app.route('/api/permissions', methods=['POST'])
-@login_required
-@admin_required
-def grant_permission():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
+@app.route('/folders/<int:folder_id>/files', methods=['GET'])
+@require_login
+def get_folder_files(folder_id):
+    """Get files in a specific folder"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT f.id, f.original_name, f.upload_date, f.file_size
+        FROM files f
+        WHERE f.folder_id = ?
+        ORDER BY f.upload_date DESC
+    ''', (folder_id,))
+    files = cursor.fetchall()
+    conn.close()
+    
+    file_list = []
+    for file in files:
+        file_list.append({
+            'id': file[0],
+            'original_name': file[1],
+            'upload_date': file[2],
+            'file_size': file[3]
+        })
+    
+    return jsonify({'success': True, 'files': file_list})
+
+@app.route('/upload/<int:folder_id>', methods=['POST'])
+@require_login
+def upload_files(folder_id):
+    """Upload files to a folder"""
+    if 'files' not in request.files:
+        return jsonify({'success': False, 'message': 'No files provided'})
+    
+    files = request.files.getlist('files')
+    uploaded_count = 0
+    errors = []
+    
+    for file in files:
+        if file.filename == '':
+            continue
+            
+        if not file.filename.lower().endswith('.pdf'):
+            errors.append(f"{file.filename}: Only PDF files allowed")
+            continue
         
-        user_id = data.get('user_id')
-        folder_id = data.get('folder_id')
-        permission_level = data.get('permission_level', 'read')
-        
-        if not all([user_id, folder_id]):
-            return jsonify({'success': False, 'message': 'User ID and Folder ID required'}), 400
-        
-        if permission_level not in ['read', 'write', 'admin']:
-            return jsonify({'success': False, 'message': 'Invalid permission level'}), 400
-        
-        # Check if permission already exists
-        existing = FolderPermission.query.filter_by(
-            user_id=user_id, 
-            folder_id=folder_id
-        ).first()
-        
-        if existing:
-            existing.permission_level = permission_level
-            existing.granted_by = current_user.id
-            existing.granted_at = datetime.utcnow()
-        else:
-            permission = FolderPermission(
-                user_id=user_id,
-                folder_id=folder_id,
-                permission_level=permission_level,
-                granted_by=current_user.id
+        try:
+            # Generate unique filename
+            file_key = f"{folder_id}/{uuid.uuid4()}_{secure_filename(file.filename)}"
+            
+            # Upload to S3 if configured
+            if s3_client:
+                s3_client.upload_fileobj(file, S3_BUCKET, file_key)
+            
+            # Save to database
+            conn = sqlite3.connect(DATABASE_URL)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO files (original_name, file_key, folder_id, uploaded_by, file_size)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (file.filename, file_key, folder_id, session['user_id'], file.content_length or 0))
+            conn.commit()
+            conn.close()
+            
+            uploaded_count += 1
+            
+        except Exception as e:
+            errors.append(f"{file.filename}: {str(e)}")
+    
+    return jsonify({
+        'success': uploaded_count > 0,
+        'uploaded': uploaded_count,
+        'errors': errors,
+        'message': f'Uploaded {uploaded_count} files'
+    })
+
+@app.route('/view/<int:file_id>')
+@require_login
+def view_file(file_id):
+    """View/serve a file"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT f.file_key, f.original_name, fo.id
+        FROM files f
+        JOIN folders fo ON f.folder_id = fo.id
+        LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = ?
+        WHERE f.id = ? AND (up.permission_level IS NOT NULL OR f.uploaded_by = ?)
+    ''', (session['user_id'], file_id, session['user_id']))
+    file = cursor.fetchone()
+    conn.close()
+    
+    if not file:
+        return jsonify({'error': 'File not found or access denied'}), 404
+    
+    file_key, original_name, folder_id = file
+    
+    if s3_client:
+        try:
+            # Generate presigned URL for S3
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': S3_BUCKET, 'Key': file_key},
+                ExpiresIn=3600
             )
-            db.session.add(permission)
+            return redirect(url)
+        except Exception as e:
+            return jsonify({'error': 'File access error'}), 500
+    else:
+        return jsonify({'error': 'File storage not configured'}), 500
+
+@app.route('/download/<int:file_id>')
+@require_login
+def download_file(file_id):
+    """Download a file"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT f.file_key, f.original_name, fo.id
+        FROM files f
+        JOIN folders fo ON f.folder_id = fo.id
+        LEFT JOIN user_permissions up ON fo.id = up.folder_id AND up.user_id = ?
+        WHERE f.id = ? AND (up.permission_level IS NOT NULL OR f.uploaded_by = ?)
+    ''', (session['user_id'], file_id, session['user_id']))
+    file = cursor.fetchone()
+    conn.close()
+    
+    if not file:
+        return jsonify({'error': 'File not found or access denied'}), 404
+    
+    file_key, original_name, folder_id = file
+    
+    if s3_client:
+        try:
+            # Generate presigned URL for download
+            url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': S3_BUCKET, 
+                    'Key': file_key,
+                    'ResponseContentDisposition': f'attachment; filename="{original_name}"'
+                },
+                ExpiresIn=3600
+            )
+            return redirect(url)
+        except Exception as e:
+            return jsonify({'error': 'File download error'}), 500
+    else:
+        return jsonify({'error': 'File storage not configured'}), 500
+
+# Permission Management APIs
+@app.route('/api/permissions', methods=['POST'])
+@require_admin
+def grant_permission():
+    """Grant folder permission to user"""
+    data = request.get_json()
+    user_id = data.get('user_id')
+    folder_id = data.get('folder_id')
+    permission_level = data.get('permission_level', 'read')
+    
+    if not all([user_id, folder_id]):
+        return jsonify({'success': False, 'message': 'User ID and Folder ID required'})
+    
+    try:
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO user_permissions 
+            (user_id, folder_id, permission_level, granted_by)
+            VALUES (?, ?, ?, ?)
+        ''', (user_id, folder_id, permission_level, session['user_id']))
+        conn.commit()
+        conn.close()
         
-        db.session.commit()
         return jsonify({'success': True, 'message': 'Permission granted successfully'})
     except Exception as e:
-        logger.error(f"Error granting permission: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to grant permission'}), 500
+        return jsonify({'success': False, 'message': str(e)})
 
 @app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
-@login_required
-@admin_required
+@require_admin
 def revoke_permission(user_id, folder_id):
-    try:
-        permission = FolderPermission.query.filter_by(
-            user_id=user_id,
-            folder_id=folder_id
-        ).first()
-        
-        if not permission:
-            return jsonify({'success': False, 'message': 'Permission not found'}), 404
-        
-        db.session.delete(permission)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Permission revoked successfully'})
-    except Exception as e:
-        logger.error(f"Error revoking permission: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to revoke permission'}), 500
-
-# Database initialization endpoint
-@app.route('/init-database')
-def manual_init_db():
-    """Manual database initialization endpoint"""
-    try:
-        with app.app_context():
-            result = init_db()
-            if result:
-                return jsonify({'success': True, 'message': 'Database initialized successfully. Default admin: username=admin, password=admin123'})
-            else:
-                return jsonify({'success': False, 'message': 'Database initialization failed'})
-    except Exception as e:
-        logger.error(f"Manual database initialization error: {e}")
-        return jsonify({'success': False, 'message': f'Database initialization failed: {str(e)}'})
-
-# API endpoint to get current user info
-@app.route('/api/user-info')
-@login_required
-def get_user_info():
-    try:
-        return jsonify({
-            'id': current_user.id,
-            'username': current_user.username,
-            'email': current_user.email,
-            'is_admin': current_user.is_admin
-        })
-    except Exception as e:
-        logger.error(f"Error getting user info: {e}")
-        return jsonify({'error': 'Failed to get user info'}), 500
-
-# Error handlers
-@app.errorhandler(404)
-def not_found_error(error):
-    return jsonify({'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    try:
-        db.session.rollback()
-    except:
-        pass
-    return jsonify({'error': 'Internal server error'}), 500
-
-# Initialize database when app starts
-with app.app_context():
-    success = init_db()
-    if not success:
-        logger.error("Failed to initialize database on startup")
-
-if __name__ == '__main__':
-    # Ensure database is initialized before running
-    with app.app_context():
-        init_db()
+    """Revoke folder permission from user"""
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        DELETE FROM user_permissions 
+        WHERE user_id = ? AND folder_id = ?
+    ''', (user_id, folder_id))
+    conn.commit()
+    conn.close()
     
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    return jsonify({'success': True, 'message': 'Permission revoked successfully'})
+
+# Password Reset Token Handling
+@app.route('/reset-password')
+def reset_password_page():
+    """Serve password reset page"""
+    token = request.args.get('token')
+    if not token:
+        return "Invalid reset link", 400
+    
+    # Verify token
+    conn = sqlite3.connect(DATABASE_URL)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT prt.user_id, u.username 
+        FROM password_reset_tokens prt
+        JOIN users u ON prt.user_id = u.id
+        WHERE prt.token = ? AND prt.expires_at > datetime('now') AND prt.used = 0
+    ''', (token,))
+    token_data = cursor.fetchone()
+    conn.close()
+    
+    if not token_data:
+        return "Invalid or expired reset link", 400
+    
+    return f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Reset Password - PDF Management</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; background: #f5f5f5; }}
+            .reset-container {{ max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }}
+            .form-group {{ margin-bottom: 20px; }}
+            label {{ display: block; margin-bottom: 5px; font-weight: bold; }}
+            input {{ width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }}
+            button {{ width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }}
+            button:hover {{ background: #0056b3; }}
+            .error {{ color: red; margin-top: 10px; }}
+            .success {{ color: green; margin-top: 10px; }}
+        </style>
+    </head>
+    <body>
+        <div class="reset-container">
+            <h2>Reset Password</h2>
+            <p>Reset password for: <strong>{token_data[1]}</strong></p>
+            <form id="resetForm">
+                <input type="hidden" id="token" value="{token}">
+                <div class="form-group">
+                    <label for="new_password">New Password:</label>
+                    <input type="password" id="new_password" name="new_password" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password:</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required minlength="6">
+                </div>
+                <button type="submit">Reset Password</button>
+            </form>
+            <div class="error" id="error-message"></div>
+            <div class="success" id="success-message"></div>
+        </div>
+
+        <script>
+            document.getElementById('resetForm').addEventListener('submit', async (e) => {{
+                e.preventDefault();
+                
+                const token = document.getElementById('token').value;
+                const newPassword = document.getElementById('new_password').value;
+                const confirmPassword = document.getElementById('confirm_password').value;
+                
+                document.getElementById('error-message').textContent = '';
+                document.getElementById('success-message').textContent = '';
+                
+                if (newPassword !== confirmPassword) {{
+                    document.getElementById('error-message').textContent = 'Passwords do not match';
+                    return;
+                }}
+                
+                if (newPassword.length < 6) {{
+                    document.getElementById('error-message').textContent = 'Password must be at least 6 characters';
+                    return;
+                }}
+                
+                try {{
+                    const response = await fetch('/api/reset-password', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ token: token, new_password: newPassword }})
+                    }});
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {{
+                        document.getElementById('success-message').textContent = 'Password reset successfully! You can now login with your new password.';
+                        document.getElementById('resetForm').style.display = 'none';
+                        setTimeout(() => {{
+                            window.location.href = '/login';
+                        }}, 3000);
+                    }} else {{
+                        document.getElementById('error-message').textContent = data.message || 'Error resetting password';
+                    }}
+                }} catch (error) {{
+                    console.error('Reset error:', error);
+                    document.getElementById('error-message').textContent = 'Error resetting password. Please try again.';
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    '''
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password_confirm():
+    """Confirm password reset"""
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        new_password = data.get('new_password')
+        
+        if not token or not new_password:
+            return jsonify({'success': False, 'message': 'Token and new password required'})
+        
+        if len(new_password) < 6:
+            return jsonify({'success': False, 'message': 'Password must be at least 6 characters'})
+        
+        conn = sqlite3.connect(DATABASE_URL)
+        cursor = conn.cursor()
+        
+        # Verify token
+        cursor.execute('''
+            SELECT user_id FROM password_reset_tokens 
+            WHERE token = ? AND expires_at > datetime('now') AND used = 0
+        ''', (token,))
+        token_data = cursor.fetchone()
+        
+        if not token_data:
+            conn.close()
+            return jsonify({'success': False, 'message': 'Invalid or expired token'})
+        
+        user_id = token_data[0]
+        
+        # Update password
+        password_hash = hash_password(new_password)
+        cursor.execute('UPDATE users SET password_hash = ? WHERE id = ?', (password_hash, user_id))
+        
+        # Mark token as used
+        cursor.execute('UPDATE password_reset_tokens SET used = 1 WHERE token = ?', (token,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Password reset successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# Initialize database on startup
+if __name__ == '__main__':
+    init_db()
+    app.run(host='0.0.0.0', port=PORT, debug=(FLASK_ENV == 'development'))
