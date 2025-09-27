@@ -82,7 +82,12 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    window.location.href = '/';
+                    // Check if user is admin and redirect accordingly
+                    if (data.user && data.user.is_admin) {
+                        window.location.href = '/admin';  // Redirect admins to admin dashboard
+                    } else {
+                        window.location.href = '/dashboard';  // Redirect regular users to user dashboard
+                    }
                 } else {
                     document.getElementById('error-message').textContent = data.message || 'Invalid username or password';
                 }
