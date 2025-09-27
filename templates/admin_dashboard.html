@@ -373,6 +373,20 @@
             font-weight: bold;
             z-index: 2000;
         }
+        /* New styles for select all functionality */
+        .select-all-container {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .select-all-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 <body>
@@ -416,6 +430,19 @@
                 </div>
             </div>
             
+            <!-- Multi-select functionality for folders -->
+            <div class="select-all-container" style="display: none;" id="folder-select-container">
+                <div class="select-all-actions">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="select-all-folders" onchange="toggleSelectAllFolders()">
+                        <label for="select-all-folders">Select All Folders</label>
+                    </div>
+                    <button class="btn btn-warning" onclick="deleteSelectedFolders()">Delete Selected</button>
+                    <button class="btn btn-info" onclick="exportSelectedFolders()">Export Selected</button>
+                    <span id="selected-folders-count">0 folders selected</span>
+                </div>
+            </div>
+            
             <div class="folder-upload-area" id="folder-upload-area" style="display: none;">
                 <div>📁 Drag and drop folders with PDFs here</div>
                 <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
@@ -443,6 +470,20 @@
             <div class="section-header">
                 <h2>File Management</h2>
             </div>
+            
+            <!-- Multi-select functionality for files -->
+            <div class="select-all-container" id="file-select-container">
+                <div class="select-all-actions">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="select-all-files" onchange="toggleSelectAllFiles()">
+                        <label for="select-all-files">Select All Files</label>
+                    </div>
+                    <button class="btn btn-danger" onclick="deleteSelectedFiles()">Delete Selected</button>
+                    <button class="btn btn-info" onclick="downloadSelectedFiles()">Download Selected</button>
+                    <span id="selected-files-count">0 files selected</span>
+                </div>
+            </div>
+            
             <div id="files-container">
                 <div class="loading">Loading files...</div>
             </div>
@@ -506,6 +547,10 @@
                         <label for="is_active">Active (User can login and access files)</label>
                     </div>
                 </div>
+                <div class="form-group">
+                    <button type="button" class="btn btn-warning" onclick="sendPasswordReset()">Send Password Reset Email</button>
+                    <small style="color: #666; display: block; margin-top: 0.5rem;">User will receive an email to reset their password</small>
+                </div>
                 <button type="submit" class="btn btn-success">Save User</button>
             </form>
         </div>
@@ -524,6 +569,11 @@
                     <input type="text" id="folder_name" name="folder_name" required>
                 </div>
                 <div class="form-group">
+                    <label for="folder_path">Folder Path</label>
+                    <input type="text" id="folder_path" name="folder_path" placeholder="e.g., /documents/reports">
+                    <small style="color: #666;">Optional: Specify the folder path/location</small>
+                </div>
+                <div class="form-group">
                     <label for="description">Description</label>
                     <textarea id="description" name="description"></textarea>
                 </div>
@@ -532,7 +582,7 @@
         </div>
     </div>
 
-    <!-- User Permissions Modal -->
+    <!-- User Permissions Modal (Updated) -->
     <div id="permissions-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -542,7 +592,11 @@
             <form id="permissions-form">
                 <input type="hidden" id="perm-user-id">
                 <div class="form-group">
-                    <label>Select Folders (Multi-select):</label>
+                    <label>Select Folders:</label>
+                    <div class="checkbox-group" style="margin-bottom: 0.5rem;">
+                        <input type="checkbox" id="select-all-perm-folders" onchange="toggleSelectAllPermFolders()">
+                        <label for="select-all-perm-folders">Select All Folders</label>
+                    </div>
                     <div class="folder-select-container" id="folder-checkboxes">
                         <!-- Folders will be populated here -->
                     </div>
@@ -551,7 +605,6 @@
                     <label for="perm-level">Permission Level for Selected Folders</label>
                     <select id="perm-level">
                         <option value="read">Read Only</option>
-                        <option value="write">Read & Write</option>
                         <option value="admin">Full Admin</option>
                     </select>
                 </div>
@@ -567,6 +620,7 @@
         let allUsers = [];
         let allFiles = [];
         let selectedFiles = new Set();
+        let selectedFolders = new Set();
         let sortDirection = {};
         let folderUploadAreaVisible = false;
         let dragCounter = 0;
@@ -638,6 +692,93 @@
             const uploadArea = document.getElementById('folder-upload-area');
             folderUploadAreaVisible = !folderUploadAreaVisible;
             uploadArea.style.display = folderUploadAreaVisible ? 'flex' : 'none';
+        }
+
+        // New function for password reset
+        async function sendPasswordReset() {
+            const email = document.getElementById('email').value;
+            if (!email) {
+                alert('Please enter an email address first');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/password-reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Password reset email sent successfully!');
+                } else {
+                    alert('Error sending password reset email: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error sending password reset:', error);
+                alert('Error sending password reset email');
+            }
+        }
+
+        // Updated select all functions for folders
+        function toggleSelectAllFolders() {
+            const selectAllCheckbox = document.getElementById('select-all-folders');
+            const folderCheckboxes = document.querySelectorAll('.folder-item input[type="checkbox"]');
+            
+            selectedFolders.clear();
+            folderCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedFolders.add(parseInt(checkbox.value));
+                }
+            });
+            
+            updateSelectedFoldersCount();
+        }
+
+        function updateSelectedFoldersCount() {
+            const count = selectedFolders.size;
+            document.getElementById('selected-folders-count').textContent = `${count} folder${count !== 1 ? 's' : ''} selected`;
+            
+            // Show/hide the select container based on whether we have folders
+            const selectContainer = document.getElementById('folder-select-container');
+            if (allFolders.length > 0) {
+                selectContainer.style.display = 'block';
+            } else {
+                selectContainer.style.display = 'none';
+            }
+        }
+
+        // Updated select all functions for files
+        function toggleSelectAllFiles() {
+            const selectAllCheckbox = document.getElementById('select-all-files');
+            const fileCheckboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
+            
+            selectedFiles.clear();
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedFiles.add(parseInt(checkbox.value));
+                }
+            });
+            
+            updateSelectedFilesCount();
+        }
+
+        function updateSelectedFilesCount() {
+            const count = selectedFiles.size;
+            document.getElementById('selected-files-count').textContent = `${count} file${count !== 1 ? 's' : ''} selected`;
+        }
+
+        // New function for permissions modal select all
+        function toggleSelectAllPermFolders() {
+            const selectAllCheckbox = document.getElementById('select-all-perm-folders');
+            const folderCheckboxes = document.querySelectorAll('#folder-checkboxes input[type="checkbox"]');
+            
+            folderCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
         }
 
         async function handleFolderDrop(items) {
@@ -784,6 +925,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         folder_name: folderPath.split('/').pop() || folderPath,
+                        folder_path: folderPath,
                         description: `Auto-created from folder upload: ${folderPath}`
                     })
                 });
@@ -903,6 +1045,7 @@
                                         <td>
                                             <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
                                             <button class="btn btn-info" onclick="manageUserPermissions(${user.id}, '${user.username}')">Permissions</button>
+                                            <button class="btn btn-warning" onclick="sendUserPasswordReset('${user.email}')">Reset Password</button>
                                             <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
                                         </td>
                                     </tr>
@@ -947,6 +1090,7 @@
                                 <td>
                                     <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
                                     <button class="btn btn-info" onclick="manageUserPermissions(${user.id}, '${user.username}')">Permissions</button>
+                                    <button class="btn btn-warning" onclick="sendUserPasswordReset('${user.email}')">Reset Password</button>
                                     <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
                                 </td>
                             </tr>
@@ -954,6 +1098,29 @@
                     </tbody>
                 </table>
             `;
+        }
+
+        // New function for sending password reset from user list
+        async function sendUserPasswordReset(email) {
+            if (!confirm(`Send password reset email to ${email}?`)) return;
+            
+            try {
+                const response = await fetch('/api/password-reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Password reset email sent successfully!');
+                } else {
+                    alert('Error sending password reset email: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error sending password reset:', error);
+                alert('Error sending password reset email');
+            }
         }
 
         function editUser(userId) {
@@ -989,7 +1156,7 @@
             folderContainer.innerHTML = allFolders.map(folder => `
                 <label class="folder-checkbox">
                     <input type="checkbox" name="folders" value="${folder.id}">
-                    ${folder.folder_name} (${folder.folder_path})
+                    ${folder.folder_name} (${folder.folder_path || 'No path'})
                 </label>
             `).join('');
             
@@ -1009,6 +1176,9 @@
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" id="select-all-folders-table" onchange="toggleSelectAllFoldersTable()">
+                                    </th>
                                     <th onclick="sortAndReloadFolders('folder_name')">Folder Name <span class="sort-arrow">↕</span></th>
                                     <th onclick="sortAndReloadFolders('folder_path')">Path <span class="sort-arrow">↕</span></th>
                                     <th>Permission Level</th>
@@ -1017,12 +1187,16 @@
                             </thead>
                             <tbody>
                                 ${allFolders.map(folder => `
-                                    <tr>
+                                    <tr class="folder-item">
+                                        <td>
+                                            <input type="checkbox" value="${folder.id}" onchange="toggleFolderSelection(${folder.id})">
+                                        </td>
                                         <td>${folder.folder_name}</td>
-                                        <td>${folder.folder_path}</td>
+                                        <td>${folder.folder_path || 'N/A'}</td>
                                         <td>${folder.permission_level}</td>
                                         <td>
                                             <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
+                                            <button class="btn btn-danger" onclick="deleteFolder(${folder.id}, '${folder.folder_name}')">Delete</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -1032,9 +1206,96 @@
                 } else {
                     container.innerHTML = '<p>No folders found. Create one using the buttons above or drag and drop a folder.</p>';
                 }
+                
+                updateSelectedFoldersCount();
             } catch (error) {
                 console.error('Error loading folders:', error);
                 document.getElementById('folders-container').innerHTML = '<p>Error loading folders.</p>';
+            }
+        }
+
+        function toggleSelectAllFoldersTable() {
+            const selectAllCheckbox = document.getElementById('select-all-folders-table');
+            const folderCheckboxes = document.querySelectorAll('.folder-item input[type="checkbox"]');
+            
+            selectedFolders.clear();
+            folderCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedFolders.add(parseInt(checkbox.value));
+                }
+            });
+            
+            // Also update the main select all checkbox
+            document.getElementById('select-all-folders').checked = selectAllCheckbox.checked;
+            updateSelectedFoldersCount();
+        }
+
+        function toggleFolderSelection(folderId) {
+            if (selectedFolders.has(folderId)) {
+                selectedFolders.delete(folderId);
+            } else {
+                selectedFolders.add(folderId);
+            }
+            updateSelectedFoldersCount();
+            
+            // Update select all checkbox state
+            const totalFolders = document.querySelectorAll('.folder-item input[type="checkbox"]').length;
+            const selectAllCheckbox = document.getElementById('select-all-folders');
+            const tableSelectAllCheckbox = document.getElementById('select-all-folders-table');
+            
+            if (selectedFolders.size === totalFolders) {
+                selectAllCheckbox.checked = true;
+                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.checked = false;
+                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = false;
+            }
+        }
+
+        async function deleteSelectedFolders() {
+            if (selectedFolders.size === 0) {
+                alert('Please select folders to delete');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete ${selectedFolders.size} folder(s)? This will also delete all files in these folders.`)) return;
+            
+            let deletedCount = 0;
+            for (const folderId of selectedFolders) {
+                try {
+                    const response = await fetch(`/api/folders/${folderId}`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) deletedCount++;
+                } catch (error) {
+                    console.error(`Error deleting folder ${folderId}:`, error);
+                }
+            }
+            
+            alert(`Successfully deleted ${deletedCount} folder(s)`);
+            selectedFolders.clear();
+            loadFolders();
+        }
+
+        async function deleteFolder(folderId, folderName) {
+            if (!confirm(`Are you sure you want to delete folder "${folderName}"? This will also delete all files in this folder.`)) return;
+            
+            try {
+                const response = await fetch(`/api/folders/${folderId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Folder deleted successfully!');
+                    loadFolders();
+                } else {
+                    alert('Error deleting folder: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error deleting folder:', error);
+                alert('Error deleting folder');
             }
         }
 
@@ -1045,6 +1306,9 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th style="width: 50px;">
+                                <input type="checkbox" id="select-all-folders-table" onchange="toggleSelectAllFoldersTable()">
+                            </th>
                             <th onclick="sortAndReloadFolders('folder_name')">Folder Name <span class="sort-arrow">↕</span></th>
                             <th onclick="sortAndReloadFolders('folder_path')">Path <span class="sort-arrow">↕</span></th>
                             <th>Permission Level</th>
@@ -1053,12 +1317,16 @@
                     </thead>
                     <tbody>
                         ${allFolders.map(folder => `
-                            <tr>
+                            <tr class="folder-item">
+                                <td>
+                                    <input type="checkbox" value="${folder.id}" onchange="toggleFolderSelection(${folder.id})">
+                                </td>
                                 <td>${folder.folder_name}</td>
-                                <td>${folder.folder_path}</td>
+                                <td>${folder.folder_path || 'N/A'}</td>
                                 <td>${folder.permission_level}</td>
                                 <td>
                                     <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
+                                    <button class="btn btn-danger" onclick="deleteFolder(${folder.id}, '${folder.folder_name}')">Delete</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -1080,6 +1348,9 @@
                         <table class="table">
                             <thead>
                                 <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" id="select-all-files-table" onchange="toggleSelectAllFilesTable()">
+                                    </th>
                                     <th onclick="sortAndReloadFiles('original_name')">File Name <span class="sort-arrow">↕</span></th>
                                     <th onclick="sortAndReloadFiles('folder_name')">Folder <span class="sort-arrow">↕</span></th>
                                     <th>Uploaded By</th>
@@ -1089,7 +1360,10 @@
                             </thead>
                             <tbody>
                                 ${allFiles.map(file => `
-                                    <tr>
+                                    <tr class="file-item">
+                                        <td>
+                                            <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
+                                        </td>
                                         <td>${file.original_name}</td>
                                         <td>${file.folder_name}</td>
                                         <td>${file.uploaded_by}</td>
@@ -1106,9 +1380,70 @@
                 } else {
                     container.innerHTML = '<p>No files found. Upload files to a folder first.</p>';
                 }
+                
+                updateSelectedFilesCount();
             } catch (error) {
                 console.error('Error loading files:', error);
                 document.getElementById('files-container').innerHTML = '<p>Error loading files.</p>';
+            }
+        }
+
+        function toggleSelectAllFilesTable() {
+            const selectAllCheckbox = document.getElementById('select-all-files-table');
+            const fileCheckboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
+            
+            selectedFiles.clear();
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedFiles.add(parseInt(checkbox.value));
+                }
+            });
+            
+            // Also update the main select all checkbox
+            document.getElementById('select-all-files').checked = selectAllCheckbox.checked;
+            updateSelectedFilesCount();
+        }
+
+        function toggleFileSelection(fileId) {
+            if (selectedFiles.has(fileId)) {
+                selectedFiles.delete(fileId);
+            } else {
+                selectedFiles.add(fileId);
+            }
+            updateSelectedFilesCount();
+            
+            // Update select all checkbox state
+            const totalFiles = document.querySelectorAll('.file-item input[type="checkbox"]').length;
+            const selectAllCheckbox = document.getElementById('select-all-files');
+            const tableSelectAllCheckbox = document.getElementById('select-all-files-table');
+            
+            if (selectedFiles.size === totalFiles) {
+                selectAllCheckbox.checked = true;
+                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.checked = false;
+                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = false;
+            }
+        }
+
+        async function downloadSelectedFiles() {
+            if (selectedFiles.size === 0) {
+                alert('Please select files to download');
+                return;
+            }
+            
+            // For now, we'll download files one by one
+            // In a real implementation, you might want to create a zip file
+            for (const fileId of selectedFiles) {
+                try {
+                    const file = allFiles.find(f => f.id === fileId);
+                    if (file) {
+                        window.open(`/download/${fileId}`, '_blank');
+                    }
+                } catch (error) {
+                    console.error(`Error downloading file ${fileId}:`, error);
+                }
             }
         }
 
@@ -1119,6 +1454,9 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th style="width: 50px;">
+                                <input type="checkbox" id="select-all-files-table" onchange="toggleSelectAllFilesTable()">
+                            </th>
                             <th onclick="sortAndReloadFiles('original_name')">File Name <span class="sort-arrow">↕</span></th>
                             <th onclick="sortAndReloadFiles('folder_name')">Folder <span class="sort-arrow">↕</span></th>
                             <th>Uploaded By</th>
@@ -1128,7 +1466,10 @@
                     </thead>
                     <tbody>
                         ${allFiles.map(file => `
-                            <tr>
+                            <tr class="file-item">
+                                <td>
+                                    <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
+                                </td>
                                 <td>${file.original_name}</td>
                                 <td>${file.folder_name}</td>
                                 <td>${file.uploaded_by}</td>
@@ -1195,14 +1536,6 @@
             showTab('folders');
         }
 
-        function toggleFileSelection(fileId) {
-            if (selectedFiles.has(fileId)) {
-                selectedFiles.delete(fileId);
-            } else {
-                selectedFiles.add(fileId);
-            }
-        }
-
         function selectAllFiles() {
             const checkboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
             checkboxes.forEach(cb => {
@@ -1242,8 +1575,13 @@
             alert(`Successfully deleted ${deletedCount} file(s)`);
             selectedFiles.clear();
             
-            const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
-            viewFolderFiles(currentViewingFolderId, folderName);
+            // Reload the appropriate view
+            if (currentViewingFolderId) {
+                const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
+                viewFolderFiles(currentViewingFolderId, folderName);
+            } else {
+                loadFiles();
+            }
         }
 
         async function deleteSingleFile(fileId) {
@@ -1407,6 +1745,7 @@
             const formData = new FormData(e.target);
             const folderData = {
                 folder_name: formData.get('folder_name'),
+                folder_path: formData.get('folder_path'),
                 description: formData.get('description')
             };
 
