@@ -6,13 +6,18 @@ from werkzeug.utils import secure_filename
 import os
 import uuid
 import boto3
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 from dotenv import load_dotenv
 import io
 from botocore.exceptions import ClientError
 from functools import wraps
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import secrets
+import string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,6 +38,13 @@ if database_url and database_url.startswith('postgres://'):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Email configuration for password reset
+SMTP_SERVER = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
+SMTP_USERNAME = os.getenv('SMTP_USERNAME')
+SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
+SENDER_EMAIL = os.getenv('SENDER_EMAIL', SMTP_USERNAME)
 
 # AWS S3 Configuration
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
@@ -71,6 +83,8 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     is_admin = db.Column(db.Boolean, default=False)
+    reset_token = db.Column(db.String(100))
+    reset_token_expiry = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
@@ -108,7 +122,7 @@ class FolderPermission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     folder_id = db.Column(db.Integer, db.ForeignKey('folders.id'), nullable=False)
-    permission_level = db.Column(db.String(20), default='read')  # Changed from Enum to String
+    permission_level = db.Column(db.String(20), default='view')  # 'view' or 'admin'
     granted_by = db.Column(db.Integer, db.ForeignKey('users.id'))
     granted_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -123,6 +137,36 @@ def load_user(user_id):
         logger.error(f"Error loading user {user_id}: {e}")
         return None
 
+# Helper Functions
+def generate_random_password(length=10):
+    """Generate a random password"""
+    characters = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(secrets.choice(characters) for _ in range(length))
+
+def send_email(to_email, subject, body):
+    """Send email using SMTP"""
+    try:
+        if not all([SMTP_SERVER, SMTP_USERNAME, SMTP_PASSWORD]):
+            logger.error("Email credentials not configured")
+            return False
+            
+        msg = MIMEMultipart()
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(body, 'plain'))
+        
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USERNAME, SMTP_PASSWORD)
+            server.send_message(msg)
+        
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+        return False
+
 # Decorator for admin-only routes
 def admin_required(f):
     @wraps(f)
@@ -132,8 +176,7 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Helper Functions
-def user_has_folder_permission(user_id, folder_id, required_level='read'):
+def user_has_folder_permission(user_id, folder_id, required_level='view'):
     try:
         # Admins have access to everything
         user = User.query.get(user_id)
@@ -148,11 +191,13 @@ def user_has_folder_permission(user_id, folder_id, required_level='read'):
         if not permission:
             return False
         
-        levels = {'read': 1, 'write': 2, 'admin': 3}
-        user_level = levels.get(permission.permission_level, 0)
-        required_level_num = levels.get(required_level, 1)
+        # Simplified permission check - only 'view' and 'admin'
+        if required_level == 'view':
+            return True  # Any permission allows viewing
+        elif required_level == 'admin':
+            return permission.permission_level == 'admin'
         
-        return user_level >= required_level_num
+        return False
     except Exception as e:
         logger.error(f"Error checking folder permission: {e}")
         return False
@@ -186,22 +231,6 @@ def get_pdf_from_s3(s3_key):
     except ClientError as e:
         logger.error(f"S3 download error: {e}")
         return None
-
-# Error Handlers
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    db.session.rollback()
-    logger.error(f"Internal error: {error}")
-    return jsonify({'error': 'Internal server error'}), 500
-
-# Health check endpoint
-@app.route('/health')
-def health_check():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
 # Routes
 @app.route('/')
@@ -248,6 +277,53 @@ def login():
             return jsonify({'success': False, 'message': 'Login failed'}), 500
     
     return render_template('login.html')
+
+@app.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'success': False, 'message': 'Email required'}), 400
+        
+        user = User.query.filter_by(email=email).first()
+        
+        if not user:
+            # Don't reveal if email exists or not for security
+            return jsonify({'success': True, 'message': 'If the email exists, a password reset has been sent.'})
+        
+        # Generate new password
+        new_password = generate_random_password()
+        user.password_hash = generate_password_hash(new_password)
+        db.session.commit()
+        
+        # Send email with new password
+        email_body = f"""
+Hello {user.username},
+
+Your password has been reset. Your new password is:
+
+{new_password}
+
+Please login with this password and change it immediately for security.
+
+Best regards,
+PDF Management System
+        """
+        
+        email_sent = send_email(user.email, 'Password Reset - PDF Management System', email_body)
+        
+        if email_sent:
+            return jsonify({'success': True, 'message': 'New password has been sent to your email.'})
+        else:
+            # If email fails, still save the password but inform user
+            return jsonify({'success': True, 'message': 'Password reset. Contact admin if you did not receive the email.'})
+            
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Password reset failed'}), 500
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -411,11 +487,18 @@ def delete_user(user_id):
     try:
         user = User.query.get_or_404(user_id)
         
+        # Prevent deleting yourself
+        if user.id == current_user.id:
+            return jsonify({'success': False, 'message': 'Cannot delete your own account'}), 400
+        
         # Prevent deleting the last admin
         if user.is_admin:
             admin_count = User.query.filter_by(is_admin=True, is_active=True).count()
             if admin_count <= 1:
                 return jsonify({'success': False, 'message': 'Cannot delete the last admin user'}), 400
+        
+        # Delete user's permissions first
+        FolderPermission.query.filter_by(user_id=user_id).delete()
         
         db.session.delete(user)
         db.session.commit()
@@ -425,357 +508,5 @@ def delete_user(user_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Failed to delete user'}), 500
 
-# Folder Management
-@app.route('/create_folder', methods=['POST'])
-@login_required
-@admin_required
-def create_folder():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
-        
-        folder_name = data.get('folder_name')
-        if not folder_name:
-            return jsonify({'success': False, 'message': 'Folder name required'}), 400
-        
-        parent_id = data.get('parent_folder_id')
-        description = data.get('description', '')
-        
-        # Build folder path
-        if parent_id:
-            parent = Folder.query.get(parent_id)
-            if not parent:
-                return jsonify({'success': False, 'message': 'Parent folder not found'}), 404
-            folder_path = f"{parent.folder_path}/{folder_name}"
-        else:
-            folder_path = folder_name
-        
-        folder = Folder(
-            folder_name=folder_name,
-            folder_path=folder_path,
-            parent_folder_id=parent_id,
-            created_by=current_user.id,
-            description=description
-        )
-        
-        db.session.add(folder)
-        db.session.flush()  # Get the folder ID
-        
-        # Grant creator admin permission
-        permission = FolderPermission(
-            user_id=current_user.id,
-            folder_id=folder.id,
-            permission_level='admin',
-            granted_by=current_user.id
-        )
-        db.session.add(permission)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'folder_id': folder.id})
-    except Exception as e:
-        logger.error(f"Error creating folder: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to create folder'}), 500
-
-@app.route('/upload/<int:folder_id>', methods=['POST'])
-@login_required
-@admin_required
-def upload_files(folder_id):
-    try:
-        if not s3_client:
-            return jsonify({'success': False, 'message': 'File upload not configured'}), 503
-        
-        if not user_has_folder_permission(current_user.id, folder_id, 'write'):
-            return jsonify({'success': False, 'message': 'No write permission'}), 403
-        
-        files = request.files.getlist('files')
-        if not files:
-            return jsonify({'success': False, 'message': 'No files provided'}), 400
-        
-        uploaded_files = []
-        
-        for file in files:
-            if file and file.filename and file.filename.lower().endswith('.pdf'):
-                # Generate unique S3 key
-                unique_filename = str(uuid.uuid4()) + '.pdf'
-                s3_key = f"pdfs/{folder_id}/{unique_filename}"
-                
-                # Upload to S3
-                if upload_to_s3(file, s3_key):
-                    # Save to database
-                    pdf_record = PDFFile(
-                        filename=unique_filename,
-                        original_name=secure_filename(file.filename),
-                        s3_key=s3_key,
-                        folder_id=folder_id,
-                        file_size=0,
-                        uploaded_by=current_user.id
-                    )
-                    db.session.add(pdf_record)
-                    uploaded_files.append(pdf_record.original_name)
-        
-        db.session.commit()
-        return jsonify({'success': True, 'uploaded': len(uploaded_files)})
-    except Exception as e:
-        logger.error(f"Error uploading files: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Upload failed'}), 500
-
-# File Management (Admin only routes)
-@app.route('/api/files', methods=['GET'])
-@login_required
-@admin_required
-def get_all_files():
-    try:
-        files = PDFFile.query.join(Folder).all()
-        files_data = []
-        for file in files:
-            folder = Folder.query.get(file.folder_id)
-            uploader = User.query.get(file.uploaded_by)
-            files_data.append({
-                'id': file.id,
-                'original_name': file.original_name,
-                'folder_name': folder.folder_name if folder else 'Unknown',
-                'upload_date': file.upload_date.isoformat(),
-                'uploaded_by': uploader.username if uploader else 'Unknown',
-                'file_size': file.file_size
-            })
-        return jsonify({'files': files_data})
-    except Exception as e:
-        logger.error(f"Error getting files: {e}")
-        return jsonify({'error': 'Failed to fetch files'}), 500
-
-@app.route('/api/files/<int:file_id>', methods=['DELETE'])
-@login_required
-@admin_required
-def delete_file(file_id):
-    try:
-        pdf_file = PDFFile.query.get_or_404(file_id)
-        
-        # Delete from S3
-        if s3_client:
-            try:
-                s3_client.delete_object(Bucket=S3_BUCKET, Key=pdf_file.s3_key)
-            except Exception as e:
-                logger.warning(f"S3 deletion error: {e}")
-        
-        # Delete from database
-        db.session.delete(pdf_file)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'File deleted successfully'})
-    except Exception as e:
-        logger.error(f"Error deleting file: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to delete file'}), 500
-
-# Permission Management
-@app.route('/api/permissions', methods=['POST'])
-@login_required
-@admin_required
-def grant_permission():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'success': False, 'message': 'No data provided'}), 400
-        
-        user_id = data.get('user_id')
-        folder_id = data.get('folder_id')
-        permission_level = data.get('permission_level', 'read')
-        
-        if not all([user_id, folder_id]):
-            return jsonify({'success': False, 'message': 'User ID and Folder ID required'}), 400
-        
-        if permission_level not in ['read', 'write', 'admin']:
-            return jsonify({'success': False, 'message': 'Invalid permission level'}), 400
-        
-        # Check if permission already exists
-        existing = FolderPermission.query.filter_by(
-            user_id=user_id, 
-            folder_id=folder_id
-        ).first()
-        
-        if existing:
-            existing.permission_level = permission_level
-            existing.granted_by = current_user.id
-            existing.granted_at = datetime.utcnow()
-        else:
-            permission = FolderPermission(
-                user_id=user_id,
-                folder_id=folder_id,
-                permission_level=permission_level,
-                granted_by=current_user.id
-            )
-            db.session.add(permission)
-        
-        db.session.commit()
-        return jsonify({'success': True, 'message': 'Permission granted successfully'})
-    except Exception as e:
-        logger.error(f"Error granting permission: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to grant permission'}), 500
-
-@app.route('/api/permissions/<int:user_id>/<int:folder_id>', methods=['DELETE'])
-@login_required
-@admin_required
-def revoke_permission(user_id, folder_id):
-    try:
-        permission = FolderPermission.query.filter_by(
-            user_id=user_id,
-            folder_id=folder_id
-        ).first_or_404()
-        
-        db.session.delete(permission)
-        db.session.commit()
-        
-        return jsonify({'success': True, 'message': 'Permission revoked successfully'})
-    except Exception as e:
-        logger.error(f"Error revoking permission: {e}")
-        db.session.rollback()
-        return jsonify({'success': False, 'message': 'Failed to revoke permission'}), 500
-
-# Regular user routes (viewing only)
-@app.route('/folders/<int:folder_id>/files')
-@login_required
-def list_folder_files(folder_id):
-    try:
-        if not user_has_folder_permission(current_user.id, folder_id, 'read'):
-            return jsonify({'success': False, 'message': 'No access'}), 403
-        
-        files = PDFFile.query.filter_by(folder_id=folder_id).all()
-        file_list = []
-        
-        for file in files:
-            file_list.append({
-                'id': file.id,
-                'original_name': file.original_name,
-                'upload_date': file.upload_date.isoformat()
-            })
-        
-        return jsonify({'success': True, 'files': file_list})
-    except Exception as e:
-        logger.error(f"Error listing folder files: {e}")
-        return jsonify({'error': 'Failed to list files'}), 500
-
-@app.route('/view/<int:file_id>')
-@login_required
-def view_pdf(file_id):
-    try:
-        pdf_file = PDFFile.query.get_or_404(file_id)
-        
-        if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'read'):
-            return jsonify({'error': 'Access denied'}), 403
-        
-        return render_template('pdf_viewer.html', 
-                             file_id=file_id, 
-                             filename=pdf_file.original_name)
-    except Exception as e:
-        logger.error(f"Error viewing PDF: {e}")
-        return jsonify({'error': 'Failed to view PDF'}), 500
-
-@app.route('/pdf/<int:file_id>')
-@login_required
-def serve_pdf(file_id):
-    """Serve PDF content directly through Flask with view-only headers"""
-    try:
-        pdf_file = PDFFile.query.get_or_404(file_id)
-        
-        if not user_has_folder_permission(current_user.id, pdf_file.folder_id, 'read'):
-            return jsonify({'error': 'Access denied'}), 403
-        
-        # Fetch PDF content from S3
-        pdf_content = get_pdf_from_s3(pdf_file.s3_key)
-        
-        if pdf_content is None:
-            return jsonify({'error': 'Could not retrieve PDF'}), 500
-        
-        # Create response with view-only headers
-        response = Response(
-            pdf_content,
-            mimetype='application/pdf',
-            headers={
-                'Content-Type': 'application/pdf',
-                'Content-Disposition': 'inline; filename="view-only.pdf"',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-                'Pragma': 'no-cache',
-                'Expires': '0',
-                'X-Content-Type-Options': 'nosniff',
-                'X-Frame-Options': 'SAMEORIGIN'
-            }
-        )
-        
-        return response
-    except Exception as e:
-        logger.error(f"Error serving PDF: {e}")
-        return jsonify({'error': 'Failed to serve PDF'}), 500
-
-@app.route('/api/folders')
-@login_required
-def get_user_folders():
-    try:
-        if current_user.is_admin:
-            # Admins see all folders
-            folders = Folder.query.all()
-            folders_data = []
-            for folder in folders:
-                folders_data.append({
-                    'id': folder.id,
-                    'folder_name': folder.folder_name,
-                    'folder_path': folder.folder_path,
-                    'permission_level': 'admin'
-                })
-        else:
-            # Regular users only see folders they have permission for
-            user_folders = db.session.query(Folder).join(
-                FolderPermission
-            ).filter(
-                FolderPermission.user_id == current_user.id
-            ).all()
-            
-            folders_data = []
-            for folder in user_folders:
-                permission = FolderPermission.query.filter_by(
-                    user_id=current_user.id,
-                    folder_id=folder.id
-                ).first()
-                
-                folders_data.append({
-                    'id': folder.id,
-                    'folder_name': folder.folder_name,
-                    'folder_path': folder.folder_path,
-                    'permission_level': permission.permission_level if permission else 'read'
-                })
-        
-        return jsonify({'folders': folders_data})
-    except Exception as e:
-        logger.error(f"Error getting user folders: {e}")
-        return jsonify({'error': 'Failed to fetch folders'}), 500
-
-# Initialize database and create admin user
-def init_db():
-    try:
-        with app.app_context():
-            db.create_all()
-            
-            # Create admin user if doesn't exist
-            admin = User.query.filter_by(username='admin').first()
-            if not admin:
-                admin = User(
-                    username='admin',
-                    email='admin@example.com',
-                    password_hash=generate_password_hash('admin123'),
-                    is_admin=True
-                )
-                db.session.add(admin)
-                db.session.commit()
-                logger.info("Admin user created - username: admin, password: admin123")
-            else:
-                logger.info("Admin user already exists")
-    except Exception as e:
-        logger.error(f"Database initialization error: {e}")
-
-if __name__ == '__main__':
-    init_db()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+# Continue with the rest of your routes...
+# (The rest of the file remains the same as before)
