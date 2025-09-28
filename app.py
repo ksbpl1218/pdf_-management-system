@@ -25,7 +25,14 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///pdf_management.db')
+
+# Database configuration - handle both SQLite and PostgreSQL
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    # Fix for newer SQLAlchemy versions
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///pdf_management.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # AWS S3 Configuration
@@ -223,11 +230,13 @@ def admin_required(f):
     return decorated
 
 # Database initialization
-@app.before_request
-def create_tables():
-    if not hasattr(app, 'tables_created'):
-        try:
-            logger.info("Starting database initialization...")
+def init_database():
+    """Initialize database with proper error handling"""
+    try:
+        logger.info("Starting database initialization...")
+        
+        # Create tables
+        with app.app_context():
             db.create_all()
             logger.info("Database tables created successfully")
             
@@ -247,11 +256,25 @@ def create_tables():
             else:
                 logger.info("Admin user already exists")
             
-            app.tables_created = True
-            logger.info("Database initialization completed successfully")
-        except Exception as e:
-            logger.error(f"Error during database initialization: {e}")
+        logger.info("Database initialization completed successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error during database initialization: {e}")
+        try:
             db.session.rollback()
+        except:
+            pass
+        return False
+
+# Database initialization (run once)
+def init_app():
+    """Initialize the app and database"""
+    init_database()
+
+# Call initialization
+with app.app_context():
+    init_app()
 
 # Routes
 @app.route('/')
