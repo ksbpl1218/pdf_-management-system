@@ -79,20 +79,20 @@
         .tab-content.active {
             display: block;
         }
-        .section-header {
+        .actions {
             display: flex;
-            justify-content: space-between;
+            gap: 1rem;
+            margin-bottom: 2rem;
             align-items: center;
-            margin-bottom: 1rem;
+            flex-wrap: wrap;
         }
         .btn {
-            padding: 0.5rem 1rem;
+            padding: 0.75rem 1.5rem;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.9rem;
+            font-size: 1rem;
             transition: background-color 0.2s;
-            margin-right: 0.5rem;
         }
         .btn-primary {
             background-color: #3498db;
@@ -122,35 +122,48 @@
         .btn-warning:hover {
             background-color: #e67e22;
         }
-        .btn-info {
-            background-color: #16a085;
-            color: white;
-        }
-        .btn-info:hover {
-            background-color: #138d75;
-        }
         .table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 1rem;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .table th,
         .table td {
-            padding: 0.75rem;
+            padding: 1rem;
             text-align: left;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid #ecf0f1;
         }
         .table th {
-            background-color: #f8f9fa;
-            font-weight: bold;
-            cursor: pointer;
-            user-select: none;
-        }
-        .table th:hover {
-            background-color: #e9ecef;
+            background-color: #34495e;
+            color: white;
+            font-weight: 600;
         }
         .table tr:hover {
             background-color: #f8f9fa;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
         }
         .modal {
             display: none;
@@ -159,19 +172,15 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
+            background: rgba(0,0,0,0.5);
             z-index: 1000;
         }
         .modal-content {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
             background: white;
-            border-radius: 8px;
+            margin: 5% auto;
             padding: 2rem;
-            width: 90%;
-            max-width: 600px;
+            border-radius: 8px;
+            max-width: 500px;
             max-height: 80vh;
             overflow-y: auto;
         }
@@ -180,1089 +189,610 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 1rem;
         }
-        .close-modal {
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        .close {
             background: none;
             border: none;
             font-size: 1.5rem;
             cursor: pointer;
-            color: #666;
         }
-        .form-group {
-            margin-bottom: 1rem;
+        .close:hover {
+            color: #e74c3c;
         }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
+        .permission-checkboxes {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #bdc3c7;
             border-radius: 4px;
-            font-size: 1rem;
+            padding: 1rem;
+            margin: 1rem 0;
         }
-        .form-group textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-        .checkbox-group {
+        .permission-item {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
+            margin-bottom: 0.5rem;
         }
-        .checkbox-group input[type="checkbox"] {
+        .permission-item input {
+            margin-right: 0.5rem;
             width: auto;
         }
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: #666;
-        }
-        .status-active {
-            color: #27ae60;
-            font-weight: bold;
-        }
-        .status-inactive {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-        .folder-select-container {
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 0.5rem;
-            border-radius: 4px;
-        }
-        .folder-checkbox {
-            display: block;
-            padding: 0.25rem 0;
-        }
-        .folder-checkbox input {
-            margin-right: 0.5rem;
-        }
-        .file-list-container {
-            margin-top: 1rem;
-        }
-        .file-item {
-            display: flex;
-            align-items: center;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            margin-bottom: 0.5rem;
-        }
-        .file-item input[type="checkbox"] {
-            margin-right: 1rem;
-        }
-        .file-item-name {
-            flex: 1;
-        }
-        .file-item-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-        .bulk-actions {
-            margin: 1rem 0;
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-        .upload-area {
-            border: 2px dashed #3498db;
-            padding: 2rem;
-            text-align: center;
-            margin: 1rem 0;
+        .drag-drop-area {
+            border: 2px dashed #bdc3c7;
             border-radius: 8px;
-            background-color: #f0f8ff;
-            cursor: pointer;
-        }
-        .upload-area:hover {
-            background-color: #e3f2fd;
-        }
-        .upload-area.dragover {
-            border-color: #2980b9;
-            background-color: #d4e6f1;
-        }
-        .folder-upload-area {
-            border: 2px dashed #27ae60;
             padding: 2rem;
             text-align: center;
-            margin: 1rem 0;
-            border-radius: 8px;
-            background-color: #f0fff4;
-            cursor: pointer;
-            min-height: 150px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            margin-bottom: 1rem;
+            transition: border-color 0.2s;
         }
-        .folder-upload-area:hover {
-            background-color: #e8f8f0;
+        .drag-drop-area.dragover {
+            border-color: #3498db;
+            background-color: #ecf0f1;
         }
-        .folder-upload-area.dragover {
-            border-color: #229954;
-            background-color: #d5f4e6;
-            transform: scale(1.02);
-        }
-        .sort-arrow {
+        .status {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
             font-size: 0.8rem;
-            margin-left: 0.25rem;
+            font-weight: 600;
         }
-        .back-btn {
-            margin-bottom: 1rem;
-        }
-        .progress-bar {
-            width: 100%;
-            height: 20px;
-            background-color: #f0f0f0;
-            border-radius: 10px;
-            overflow: hidden;
-            margin: 1rem 0;
-            display: none;
-        }
-        .progress-fill {
-            height: 100%;
-            background-color: #3498db;
-            transition: width 0.3s ease;
-            width: 0%;
-        }
-        .folder-actions {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1rem;
-        }
-        .upload-status {
-            margin-top: 1rem;
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            display: none;
-        }
-        .upload-status ul {
-            margin: 0;
-            padding-left: 1rem;
-        }
-        .upload-status .success {
+        .status.active {
+            background-color: #d5e8d4;
             color: #27ae60;
         }
-        .upload-status .error {
+        .status.inactive {
+            background-color: #f8d7da;
             color: #e74c3c;
         }
-        .drag-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(52, 152, 219, 0.8);
-            color: white;
-            display: none;
-            justify-content: center;
-            align-items: center;
-            font-size: 2rem;
-            font-weight: bold;
-            z-index: 2000;
+        .checkbox-cell {
+            text-align: center;
+            width: 50px;
         }
-        /* New styles for select all functionality */
-        .select-all-container {
-            margin-bottom: 1rem;
-            padding: 1rem;
-            background-color: #f8f9fa;
+        .selection-info {
+            background-color: #e3f2fd;
+            padding: 0.75rem;
             border-radius: 4px;
-            border: 1px solid #ddd;
+            margin-bottom: 1rem;
+            font-weight: 600;
         }
-        .select-all-actions {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            flex-wrap: wrap;
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #f5c6cb;
+        }
+        .success-message {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #bee5eb;
         }
     </style>
 </head>
 <body>
-    <div class="drag-overlay" id="drag-overlay">
-        <div>Drop folders here to add PDF files</div>
-    </div>
+    <!-- Check authentication first -->
+    <script>
+        // Check if user is logged in
+        const checkAuth = () => {
+            const token = localStorage.getItem('adminToken');
+            if (!token) {
+                // Redirect to login page if not authenticated
+                window.location.href = 'login.html';
+                return false;
+            }
+            return true;
+        };
+
+        // Run auth check immediately
+        if (!checkAuth()) {
+            // Stop loading the page if not authenticated
+            document.body.style.display = 'none';
+        }
+    </script>
 
     <div class="header">
         <h1>PDF Management System - Admin Dashboard</h1>
         <div class="user-info">
-            <span>Welcome, Administrator</span>
+            <span>Welcome, Admin</span>
             <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
     </div>
 
-    <div class="container" id="main-container">
+    <div class="container">
         <div class="tabs">
             <button class="tab active" onclick="showTab('users')">User Management</button>
             <button class="tab" onclick="showTab('folders')">Folder Management</button>
             <button class="tab" onclick="showTab('files')">File Management</button>
         </div>
 
-        <!-- Users Tab -->
-        <div id="users-tab" class="tab-content active">
-            <div class="section-header">
-                <h2>User Management</h2>
-                <button class="btn btn-primary" onclick="openCreateUserModal()">Create New User</button>
+        <!-- User Management Tab -->
+        <div id="users" class="tab-content active">
+            <h2>User Management</h2>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="showModal('userModal')">Add New User</button>
+                <button class="btn btn-danger" onclick="deleteSelectedUsers()">Delete Selected</button>
             </div>
-            <div id="users-container">
-                <div class="loading">Loading users...</div>
+            
+            <div id="userSelectionInfo" class="selection-info" style="display: none;">
+                <span id="userSelectionCount">0</span> users selected
             </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell">
+                            <input type="checkbox" id="selectAllUsers" onchange="toggleSelectAllUsers()">
+                        </th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <!-- Users will be loaded here -->
+                </tbody>
+            </table>
         </div>
 
-        <!-- Folders Tab -->
-        <div id="folders-tab" class="tab-content">
-            <div class="section-header">
-                <h2>Folder Management</h2>
-                <div class="folder-actions">
-                    <button class="btn btn-primary" onclick="openCreateFolderModal()">Create New Folder</button>
-                    <button class="btn btn-success" onclick="toggleFolderUploadArea()">Add Folder (Drag & Drop)</button>
-                </div>
+        <!-- Folder Management Tab -->
+        <div id="folders" class="tab-content">
+            <h2>Folder Management</h2>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="showModal('folderModal')">Create New Folder</button>
+                <button class="btn btn-success" onclick="document.getElementById('folderUpload').click()">Add Folder (Drag & Drop)</button>
+                <button class="btn btn-danger" onclick="deleteSelectedFolders()">Delete Selected</button>
+                <button class="btn btn-warning" onclick="exportSelectedFolders()">Export Selected</button>
+                <input type="file" id="folderUpload" webkitdirectory directory multiple style="display: none;" onchange="handleFolderUpload(event)">
             </div>
-            
-            <!-- Multi-select functionality for folders -->
-            <div class="select-all-container" style="display: none;" id="folder-select-container">
-                <div class="select-all-actions">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="select-all-folders" onchange="toggleSelectAllFolders()">
-                        <label for="select-all-folders">Select All Folders</label>
-                    </div>
-                    <button class="btn btn-warning" onclick="deleteSelectedFolders()">Delete Selected</button>
-                    <button class="btn btn-info" onclick="exportSelectedFolders()">Export Selected</button>
-                    <span id="selected-folders-count">0 folders selected</span>
-                </div>
-            </div>
-            
-            <div class="folder-upload-area" id="folder-upload-area" style="display: none;">
-                <div>📁 Drag and drop folders with PDFs here</div>
-                <div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
-                    System will automatically scan folders and all subfolders for PDF files
-                </div>
-                <input type="file" id="folder-input" webkitdirectory directory multiple style="display: none;">
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="document.getElementById('folder-input').click()">
-                    Or click to select folder
-                </button>
-            </div>
-            
-            <div class="progress-bar" id="upload-progress-bar">
-                <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            
-            <div class="upload-status" id="upload-status"></div>
 
-            <div id="folders-container">
-                <div class="loading">Loading folders...</div>
+            <div id="folderSelectionInfo" class="selection-info" style="display: none;">
+                <span id="folderSelectionCount">0</span> folders selected
             </div>
+
+            <div class="drag-drop-area" id="folderDropArea">
+                <p><strong>Drag & Drop Folders Here</strong></p>
+                <p>Only PDF files from the root level of folders will be processed</p>
+                <p>Subfolders will be ignored</p>
+            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell">
+                            <input type="checkbox" id="selectAllFolders" onchange="toggleSelectAllFolders()">
+                        </th>
+                        <th>Folder Name</th>
+                        <th>Path</th>
+                        <th>Permission Level</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="folderTableBody">
+                    <!-- Folders will be loaded here -->
+                </tbody>
+            </table>
         </div>
 
-        <!-- Files Tab -->
-        <div id="files-tab" class="tab-content">
-            <div class="section-header">
-                <h2>File Management</h2>
-            </div>
-            
-            <!-- Multi-select functionality for files -->
-            <div class="select-all-container" id="file-select-container">
-                <div class="select-all-actions">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="select-all-files" onchange="toggleSelectAllFiles()">
-                        <label for="select-all-files">Select All Files</label>
-                    </div>
-                    <button class="btn btn-danger" onclick="deleteSelectedFiles()">Delete Selected</button>
-                    <button class="btn btn-info" onclick="downloadSelectedFiles()">Download Selected</button>
-                    <span id="selected-files-count">0 files selected</span>
-                </div>
-            </div>
-            
-            <div id="files-container">
-                <div class="loading">Loading files...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Folder Files View (Hidden by default) -->
-    <div class="container" id="folder-files-container" style="display: none;">
-        <button class="btn btn-primary back-btn" onclick="backToFolders()">← Back to Folders</button>
-        <div style="background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-            <h2 id="folder-files-title">Folder Files</h2>
-            <div class="bulk-actions">
-                <button class="btn btn-primary" onclick="selectAllFiles()">Select All</button>
-                <button class="btn btn-warning" onclick="deselectAllFiles()">Deselect All</button>
+        <!-- File Management Tab -->
+        <div id="files" class="tab-content">
+            <h2>File Management</h2>
+            <div class="actions">
                 <button class="btn btn-danger" onclick="deleteSelectedFiles()">Delete Selected</button>
-                <button class="btn btn-success" onclick="showUploadToFolder()">Add More Files</button>
             </div>
-            <div id="upload-to-folder" style="display: none;">
-                <div class="upload-area" id="folder-upload-area-single">
-                    <p>Drag and drop PDF files here or click to select</p>
-                    <input type="file" id="folder-file-input" multiple accept=".pdf" style="display: none;">
-                </div>
+
+            <div id="fileSelectionInfo" class="selection-info" style="display: none;">
+                <span id="fileSelectionCount">0</span> files selected
             </div>
-            <div id="folder-files-list">
-                <div class="loading">Loading files...</div>
-            </div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell">
+                            <input type="checkbox" id="selectAllFiles" onchange="toggleSelectAllFiles()">
+                        </th>
+                        <th>File Name</th>
+                        <th>Folder</th>
+                        <th>Size</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="fileTableBody">
+                    <!-- Files will be loaded here -->
+                </tbody>
+            </table>
         </div>
     </div>
 
     <!-- User Modal -->
-    <div id="user-modal" class="modal">
+    <div id="userModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="user-modal-title">Create User</h3>
-                <button class="close-modal" onclick="closeModal('user-modal')">&times;</button>
+                <h3 class="modal-title" id="userModalTitle">Add New User</h3>
+                <button class="close" onclick="hideModal('userModal')">&times;</button>
             </div>
-            <form id="user-form">
-                <input type="hidden" id="edit-user-id">
+            <form id="userForm">
+                <input type="hidden" id="userId" name="userId">
                 <div class="form-group">
-                    <label for="username">Username</label>
+                    <label for="username">Username:</label>
                     <input type="text" id="username" name="username" required>
                 </div>
                 <div class="form-group">
-                    <label for="email">Email</label>
+                    <label for="email">Email:</label>
                     <input type="email" id="email" name="email" required>
                 </div>
-                <div class="form-group" id="password-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" name="password">
-                    <small style="color: #666;">Leave blank to keep existing password (edit mode only)</small>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
                 </div>
                 <div class="form-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="is_admin" name="is_admin">
-                        <label for="is_admin">Administrator</label>
-                    </div>
+                    <label for="role">Role:</label>
+                    <select id="role" name="role" required>
+                        <option value="">Select Role</option>
+                        <option value="view_only">View Only</option>
+                        <option value="admin">Admin Rights</option>
+                    </select>
                 </div>
                 <div class="form-group">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="is_active" name="is_active" checked>
-                        <label for="is_active">Active (User can login and access files)</label>
-                    </div>
+                    <label>
+                        <input type="checkbox" id="isActive" name="isActive" checked>
+                        Active User
+                    </label>
                 </div>
-                <div class="form-group">
-                    <button type="button" class="btn btn-warning" onclick="sendPasswordReset()">Send Password Reset Email</button>
-                    <small style="color: #666; display: block; margin-top: 0.5rem;">User will receive an email to reset their password</small>
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">Save User</button>
+                    <button type="button" class="btn" onclick="hideModal('userModal')">Cancel</button>
                 </div>
-                <button type="submit" class="btn btn-success">Save User</button>
             </form>
         </div>
     </div>
 
     <!-- Folder Modal -->
-    <div id="folder-modal" class="modal">
+    <div id="folderModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Create New Folder</h3>
-                <button class="close-modal" onclick="closeModal('folder-modal')">&times;</button>
+                <h3 class="modal-title" id="folderModalTitle">Create New Folder</h3>
+                <button class="close" onclick="hideModal('folderModal')">&times;</button>
             </div>
-            <form id="folder-form">
+            <form id="folderForm">
+                <input type="hidden" id="folderId" name="folderId">
                 <div class="form-group">
-                    <label for="folder_name">Folder Name</label>
-                    <input type="text" id="folder_name" name="folder_name" required>
+                    <label for="folderName">Folder Name:</label>
+                    <input type="text" id="folderName" name="folderName" required>
                 </div>
                 <div class="form-group">
-                    <label for="folder_path">Folder Path</label>
-                    <input type="text" id="folder_path" name="folder_path" placeholder="e.g., /documents/reports">
-                    <small style="color: #666;">Optional: Specify the folder path/location</small>
+                    <label for="folderPath">Folder Path:</label>
+                    <input type="text" id="folderPath" name="folderPath" placeholder="e.g., /documents/reports">
                 </div>
                 <div class="form-group">
-                    <label for="description">Description</label>
-                    <textarea id="description" name="description"></textarea>
+                    <label for="permissionLevel">Permission Level:</label>
+                    <select id="permissionLevel" name="permissionLevel" required>
+                        <option value="">Select Permission</option>
+                        <option value="view_only">View Only</option>
+                        <option value="admin">Admin</option>
+                    </select>
                 </div>
-                <button type="submit" class="btn btn-success">Create Folder</button>
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary" id="folderSubmitBtn">Create Folder</button>
+                    <button type="button" class="btn" onclick="hideModal('folderModal')">Cancel</button>
+                </div>
             </form>
         </div>
     </div>
 
     <!-- Rename Folder Modal -->
-    <div id="rename-folder-modal" class="modal">
+    <div id="renameFolderModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Rename Folder</h3>
-                <button class="close-modal" onclick="closeModal('rename-folder-modal')">&times;</button>
+                <h3 class="modal-title">Rename Folder</h3>
+                <button class="close" onclick="hideModal('renameFolderModal')">&times;</button>
             </div>
-            <form id="rename-folder-form">
-                <input type="hidden" id="rename-folder-id">
+            <form id="renameFolderForm">
+                <input type="hidden" id="renameFolderId">
                 <div class="form-group">
-                    <label for="new_folder_name">New Folder Name</label>
-                    <input type="text" id="new_folder_name" name="new_folder_name" required>
+                    <label for="newFolderName">New Folder Name:</label>
+                    <input type="text" id="newFolderName" name="newFolderName" required>
                 </div>
-                <div class="form-group">
-                    <label for="new_folder_path">New Folder Path (Optional)</label>
-                    <input type="text" id="new_folder_path" name="new_folder_path" placeholder="e.g., /documents/reports">
-                    <small style="color: #666;">Leave blank to keep existing path</small>
+                <div class="actions">
+                    <button type="submit" class="btn btn-primary">Rename Folder</button>
+                    <button type="button" class="btn" onclick="hideModal('renameFolderModal')">Cancel</button>
                 </div>
-                <button type="submit" class="btn btn-success">Rename Folder</button>
             </form>
         </div>
     </div>
-    <div id="permissions-modal" class="modal">
+
+    <!-- User Permissions Modal -->
+    <div id="userPermissionsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 id="permissions-modal-title">Manage User Permissions</h3>
-                <button class="close-modal" onclick="closeModal('permissions-modal')">&times;</button>
+                <h3 class="modal-title">User Permissions</h3>
+                <button class="close" onclick="hideModal('userPermissionsModal')">&times;</button>
             </div>
-            <form id="permissions-form">
-                <input type="hidden" id="perm-user-id">
-                <div class="form-group">
-                    <label>Select Folders:</label>
-                    <div class="checkbox-group" style="margin-bottom: 0.5rem;">
-                        <input type="checkbox" id="select-all-perm-folders" onchange="toggleSelectAllPermFolders()">
-                        <label for="select-all-perm-folders">Select All Folders</label>
-                    </div>
-                    <div class="folder-select-container" id="folder-checkboxes">
-                        <!-- Folders will be populated here -->
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="perm-level">Permission Level for Selected Folders</label>
-                    <select id="perm-level">
-                        <option value="read">Read Only</option>
-                        <option value="admin">Full Admin</option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-success">Grant Permissions</button>
-            </form>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="selectAllPermissions" onchange="toggleAllPermissions()">
+                    Select All Folders
+                </label>
+            </div>
+            <div class="permission-checkboxes" id="permissionsList">
+                <!-- Permissions will be loaded here -->
+            </div>
+            <div class="form-group">
+                <label for="userPermissionLevel">Permission Level:</label>
+                <select id="userPermissionLevel">
+                    <option value="view_only">View Only</option>
+                    <option value="admin">Admin Rights</option>
+                </select>
+            </div>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="saveUserPermissions()">Save Permissions</button>
+                <button class="btn" onclick="hideModal('userPermissionsModal')">Cancel</button>
+            </div>
         </div>
     </div>
 
     <script>
-        let currentEditingUserId = null;
-        let currentViewingFolderId = null;
-        let allFolders = [];
-        let allUsers = [];
-        let allFiles = [];
-        let selectedFiles = new Set();
+        // Global variables
+        let selectedUsers = new Set();
         let selectedFolders = new Set();
-        let sortDirection = {};
-        let folderUploadAreaVisible = false;
-        let dragCounter = 0;
+        let selectedFiles = new Set();
+        let currentUser = null;
+        let folders = [];
+        let users = [];
+        let files = [];
 
-        // Load initial data
-        document.addEventListener('DOMContentLoaded', function() {
-            loadUsers();
-            loadFolders();
-            loadFiles();
-            setupGlobalDragAndDrop();
-        });
-
-        // Setup global drag and drop for folders
-        function setupGlobalDragAndDrop() {
-            const dragOverlay = document.getElementById('drag-overlay');
-            
-            // Prevent default drag behaviors on entire page
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                document.addEventListener(eventName, preventDefaults, false);
-            });
-
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            // Show overlay when dragging starts
-            document.addEventListener('dragenter', function(e) {
-                if (isValidDragData(e)) {
-                    dragCounter++;
-                    dragOverlay.style.display = 'flex';
-                }
-            });
-
-            // Hide overlay when dragging leaves
-            document.addEventListener('dragleave', function(e) {
-                dragCounter--;
-                if (dragCounter <= 0) {
-                    dragOverlay.style.display = 'none';
-                    dragCounter = 0;
-                }
-            });
-
-            // Handle drop on overlay
-            dragOverlay.addEventListener('drop', function(e) {
-                e.preventDefault();
-                dragOverlay.style.display = 'none';
-                dragCounter = 0;
-                
-                if (e.dataTransfer.items) {
-                    handleFolderDrop(e.dataTransfer.items);
-                }
-            });
-
-            // Setup folder input change handler
-            document.getElementById('folder-input').addEventListener('change', function(e) {
-                if (e.target.files.length > 0) {
-                    handleFolderFiles(e.target.files);
-                }
-            });
+        // Authentication functions
+        function logout() {
+            localStorage.removeItem('adminToken');
+            window.location.href = 'login.html';
         }
 
-        function isValidDragData(e) {
-            // Check if dragged items might contain folders or files
-            return e.dataTransfer.types.includes('Files');
-        }
-
-        function toggleFolderUploadArea() {
-            const uploadArea = document.getElementById('folder-upload-area');
-            folderUploadAreaVisible = !folderUploadAreaVisible;
-            uploadArea.style.display = folderUploadAreaVisible ? 'flex' : 'none';
-        }
-
-        // New function for password reset
-        async function sendPasswordReset() {
-            const email = document.getElementById('email').value;
-            if (!email) {
-                alert('Please enter an email address first');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/password-reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    alert('Password reset email sent successfully!');
-                } else {
-                    alert('Error sending password reset email: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error sending password reset:', error);
-                alert('Error sending password reset email');
-            }
-        }
-
-        // Updated select all functions for folders
-        function toggleSelectAllFolders() {
-            const selectAllCheckbox = document.getElementById('select-all-folders');
-            const folderCheckboxes = document.querySelectorAll('.folder-item input[type="checkbox"]');
-            
-            selectedFolders.clear();
-            folderCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-                if (selectAllCheckbox.checked) {
-                    selectedFolders.add(parseInt(checkbox.value));
-                }
-            });
-            
-            updateSelectedFoldersCount();
-        }
-
-        function updateSelectedFoldersCount() {
-            const count = selectedFolders.size;
-            document.getElementById('selected-folders-count').textContent = `${count} folder${count !== 1 ? 's' : ''} selected`;
-            
-            // Show/hide the select container based on whether we have folders
-            const selectContainer = document.getElementById('folder-select-container');
-            if (allFolders.length > 0) {
-                selectContainer.style.display = 'block';
-            } else {
-                selectContainer.style.display = 'none';
-            }
-        }
-
-        // Updated select all functions for files
-        function toggleSelectAllFiles() {
-            const selectAllCheckbox = document.getElementById('select-all-files');
-            const fileCheckboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
-            
-            selectedFiles.clear();
-            fileCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-                if (selectAllCheckbox.checked) {
-                    selectedFiles.add(parseInt(checkbox.value));
-                }
-            });
-            
-            updateSelectedFilesCount();
-        }
-
-        function updateSelectedFilesCount() {
-            const count = selectedFiles.size;
-            document.getElementById('selected-files-count').textContent = `${count} file${count !== 1 ? 's' : ''} selected`;
-        }
-
-        // New function for permissions modal select all
-        function toggleSelectAllPermFolders() {
-            const selectAllCheckbox = document.getElementById('select-all-perm-folders');
-            const folderCheckboxes = document.querySelectorAll('#folder-checkboxes input[type="checkbox"]');
-            
-            folderCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-            });
-        }
-
-        async function handleFolderDrop(items) {
-            const files = [];
-            
-            // Convert DataTransferItemList to array and process
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                if (item.kind === 'file') {
-                    const entry = item.webkitGetAsEntry();
-                    if (entry) {
-                        await processEntry(entry, files);
-                    }
-                }
-            }
-
-            if (files.length > 0) {
-                await handleFolderFiles(files);
-            }
-        }
-
-        function processEntry(entry, files) {
-            return new Promise((resolve) => {
-                if (entry.isFile) {
-                    entry.file((file) => {
-                        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                            files.push(file);
-                        }
-                        resolve();
-                    });
-                } else if (entry.isDirectory) {
-                    const dirReader = entry.createReader();
-                    dirReader.readEntries(async (entries) => {
-                        for (const childEntry of entries) {
-                            await processEntry(childEntry, files);
-                        }
-                        resolve();
-                    });
-                } else {
-                    resolve();
-                }
-            });
-        }
-
-        async function handleFolderFiles(files) {
-            // Filter for PDF files from all levels (including subfolders)
-            const pdfFiles = Array.from(files).filter(file => {
-                const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-                return isPDF;
-            });
-
-            if (pdfFiles.length === 0) {
-                alert('No PDF files found in the selected folder(s) and their subfolders.');
-                return;
-            }
-
-            // Get the main folder name from the first file, or use a default name
-            let mainFolderName = 'UploadedFolder';
-            
-            if (pdfFiles.length > 0 && pdfFiles[0].webkitRelativePath) {
-                const pathParts = pdfFiles[0].webkitRelativePath.split('/');
-                if (pathParts.length >= 1) {
-                    mainFolderName = pathParts[0];
-                }
-            } else {
-                // If no webkitRelativePath, ask user for folder name
-                mainFolderName = prompt('Enter a name for the folder:', 'NewFolder');
-                if (!mainFolderName || mainFolderName.trim() === '') {
-                    alert('Folder name is required');
-                    return;
-                }
-                mainFolderName = mainFolderName.trim();
-            }
-
-            // Group all files under the main folder name (including files from subfolders)
-            const folderGroups = {};
-            folderGroups[mainFolderName] = pdfFiles;
-
-            const statusDiv = document.getElementById('upload-status');
-            const progressBar = document.getElementById('upload-progress-bar');
-            const progressFill = document.getElementById('progress-fill');
-            
-            statusDiv.style.display = 'block';
-            progressBar.style.display = 'block';
-            statusDiv.innerHTML = '<h4>Processing folders and PDF files...</h4><ul id="status-list"></ul>';
-            
-            const statusList = document.getElementById('status-list');
-            let totalFiles = pdfFiles.length;
-            let processedFiles = 0;
-
-            for (const [folderPath, files] of Object.entries(folderGroups)) {
-                try {
-                    // Create folder if it doesn't exist
-                    let folderId = await createFolderIfNotExists(folderPath);
-                    
-                    if (folderId) {
-                        // Upload files to this folder
-                        const uploadResult = await uploadFilesToFolder(folderId, files);
-                        
-                        statusList.innerHTML += `
-                            <li class="success">
-                                ✓ Folder "${folderPath}": ${uploadResult.uploaded} of ${files.length} PDFs uploaded successfully
-                            </li>
-                        `;
-                        
-                        processedFiles += files.length;
-                    } else {
-                        statusList.innerHTML += `
-                            <li class="error">
-                                ✗ Failed to create/access folder "${folderPath}"
-                            </li>
-                        `;
-                        processedFiles += files.length;
-                    }
-                } catch (error) {
-                    console.error('Error processing folder:', folderPath, error);
-                    statusList.innerHTML += `
-                        <li class="error">
-                            ✗ Error processing folder "${folderPath}": ${error.message}
-                        </li>
-                    `;
-                    processedFiles += files.length;
-                }
-
-                // Update progress
-                const progress = (processedFiles / totalFiles) * 100;
-                progressFill.style.width = progress + '%';
-            }
-
-            statusList.innerHTML += `<li class="success"><strong>✓ Processing complete! ${processedFiles} files processed.</strong></li>`;
-            
-            // Hide progress bar after completion
-            setTimeout(() => {
-                progressBar.style.display = 'none';
-                progressFill.style.width = '0%';
-            }, 2000);
-
-            // Reload folders list
-            await loadFolders();
-            
-            // Reset folder input
-            document.getElementById('folder-input').value = '';
-        }
-
-        async function createFolderIfNotExists(folderPath) {
-            try {
-                // Check if folder already exists
-                const existingFolder = allFolders.find(f => f.folder_path === folderPath || f.folder_name === folderPath);
-                if (existingFolder) {
-                    return existingFolder.id;
-                }
-
-                // Create new folder
-                const response = await fetch('/create_folder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        folder_name: folderPath.split('/').pop() || folderPath,
-                        folder_path: folderPath,
-                        description: `Auto-created from folder upload: ${folderPath}`
-                    })
-                });
-
-                const result = await response.json();
-                if (result.success) {
-                    // Refresh folders list
-                    await loadFolders();
-                    const newFolder = allFolders.find(f => f.folder_name === (folderPath.split('/').pop() || folderPath));
-                    return newFolder ? newFolder.id : null;
-                }
-                return null;
-            } catch (error) {
-                console.error('Error creating folder:', error);
-                return null;
-            }
-        }
-
-        async function uploadFilesToFolder(folderId, files) {
-            try {
-                const formData = new FormData();
-                files.forEach(file => {
-                    formData.append('files', file);
-                });
-
-                const response = await fetch(`/upload/${folderId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                const result = await response.json();
-                return result;
-            } catch (error) {
-                console.error('Error uploading files:', error);
-                return { uploaded: 0, message: error.message };
-            }
-        }
-
+        // Tab functions
         function showTab(tabName) {
-            // Hide folder files view and show main container
-            document.getElementById('folder-files-container').style.display = 'none';
-            document.getElementById('main-container').style.display = 'block';
-            
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
             });
+            // Remove active class from all tabs
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
             });
-
-            // Show selected tab
-            document.getElementById(tabName + '-tab').classList.add('active');
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            // Add active class to clicked tab
             event.target.classList.add('active');
-
-            // Reload data for the selected tab
-            if (tabName === 'users') loadUsers();
-            if (tabName === 'folders') loadFolders();
-            if (tabName === 'files') loadFiles();
+            
+            // Load data for the active tab
+            if (tabName === 'users') {
+                loadUsers();
+            } else if (tabName === 'folders') {
+                loadFolders();
+            } else if (tabName === 'files') {
+                loadFiles();
+            }
         }
 
-        // Sorting function
-        function sortTable(data, key) {
-            const direction = sortDirection[key] || 'asc';
-            
-            data.sort((a, b) => {
-                let aVal = a[key];
-                let bVal = b[key];
-                
-                if (typeof aVal === 'string') {
-                    aVal = aVal.toLowerCase();
-                    bVal = bVal.toLowerCase();
-                }
-                
-                if (direction === 'asc') {
-                    return aVal > bVal ? 1 : -1;
-                } else {
-                    return aVal < bVal ? 1 : -1;
-                }
-            });
-            
-            sortDirection[key] = direction === 'asc' ? 'desc' : 'asc';
-            return data;
+        // Modal functions
+        function showModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            // Clear forms
+            if (modalId === 'userModal') {
+                document.getElementById('userForm').reset();
+                document.getElementById('userId').value = '';
+                document.getElementById('userModalTitle').textContent = 'Add New User';
+            } else if (modalId === 'folderModal') {
+                document.getElementById('folderForm').reset();
+                document.getElementById('folderId').value = '';
+                document.getElementById('folderModalTitle').textContent = 'Create New Folder';
+                document.getElementById('folderSubmitBtn').textContent = 'Create Folder';
+            }
         }
 
         // User Management Functions
         async function loadUsers() {
             try {
-                const response = await fetch('/api/users');
-                const data = await response.json();
-                allUsers = data.users || [];
-                
-                const container = document.getElementById('users-container');
-                if (allUsers.length > 0) {
-                    container.innerHTML = `
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th onclick="sortAndReloadUsers('username')">Username <span class="sort-arrow">↕</span></th>
-                                    <th onclick="sortAndReloadUsers('email')">Email <span class="sort-arrow">↕</span></th>
-                                    <th>Status</th>
-                                    <th>Role</th>
-                                    <th>Created</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${allUsers.map(user => `
-                                    <tr>
-                                        <td>${user.username}</td>
-                                        <td>${user.email}</td>
-                                        <td class="${user.is_active ? 'status-active' : 'status-inactive'}">
-                                            ${user.is_active ? 'Active' : 'Inactive'}
-                                        </td>
-                                        <td>${user.is_admin ? 'Admin' : 'User'}</td>
-                                        <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                                        <td>
-                                            <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
-                                            <button class="btn btn-info" onclick="manageUserPermissions(${user.id}, '${user.username}')">Permissions</button>
-                                            <button class="btn btn-warning" onclick="sendUserPasswordReset('${user.email}')">Reset Password</button>
-                                            <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
-                } else {
-                    container.innerHTML = '<p>No users found.</p>';
-                }
-            } catch (error) {
-                console.error('Error loading users:', error);
-                document.getElementById('users-container').innerHTML = '<p>Error loading users.</p>';
-            }
-        }
-
-        function sortAndReloadUsers(key) {
-            allUsers = sortTable(allUsers, key);
-            const container = document.getElementById('users-container');
-            container.innerHTML = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th onclick="sortAndReloadUsers('username')">Username <span class="sort-arrow">↕</span></th>
-                            <th onclick="sortAndReloadUsers('email')">Email <span class="sort-arrow">↕</span></th>
-                            <th>Status</th>
-                            <th>Role</th>
-                            <th>Created</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${allUsers.map(user => `
-                            <tr>
-                                <td>${user.username}</td>
-                                <td>${user.email}</td>
-                                <td class="${user.is_active ? 'status-active' : 'status-inactive'}">
-                                    ${user.is_active ? 'Active' : 'Inactive'}
-                                </td>
-                                <td>${user.is_admin ? 'Admin' : 'User'}</td>
-                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                                <td>
-                                    <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
-                                    <button class="btn btn-info" onclick="manageUserPermissions(${user.id}, '${user.username}')">Permissions</button>
-                                    <button class="btn btn-warning" onclick="sendUserPasswordReset('${user.email}')">Reset Password</button>
-                                    <button class="btn btn-danger" onclick="deleteUser(${user.id}, '${user.username}')">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        // New function for sending password reset from user list
-        async function sendUserPasswordReset(email) {
-            if (!confirm(`Send password reset email to ${email}?`)) return;
-            
-            try {
-                const response = await fetch('/api/password-reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
+                const response = await fetch('/api/users', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
                 });
                 
-                const result = await response.json();
-                if (result.success) {
-                    alert('Password reset email sent successfully!');
-                } else {
-                    alert('Error sending password reset email: ' + result.message);
+                if (!response.ok) {
+                    throw new Error('Failed to load users');
                 }
+                
+                users = await response.json();
+                renderUsers();
             } catch (error) {
-                console.error('Error sending password reset:', error);
-                alert('Error sending password reset email');
+                console.error('Error loading users:', error);
+                showError('Failed to load users');
             }
+        }
+
+        function renderUsers() {
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '';
+            
+            users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" value="${user.id}" onchange="toggleUserSelection(${user.id})">
+                    </td>
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td>${user.role === 'admin' ? 'Admin Rights' : 'View Only'}</td>
+                    <td>
+                        <span class="status ${user.isActive ? 'active' : 'inactive'}">
+                            ${user.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td>
+                        <button class="btn btn-primary" onclick="editUser(${user.id})">Edit</button>
+                        <button class="btn btn-warning" onclick="showUserPermissions(${user.id})">Permissions</button>
+                        <button class="btn btn-danger" onclick="deleteUser(${user.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function toggleUserSelection(userId) {
+            if (selectedUsers.has(userId)) {
+                selectedUsers.delete(userId);
+            } else {
+                selectedUsers.add(userId);
+            }
+            updateUserSelectionInfo();
+        }
+
+        function toggleSelectAllUsers() {
+            const selectAllCheckbox = document.getElementById('selectAllUsers');
+            const userCheckboxes = document.querySelectorAll('#userTableBody input[type="checkbox"]');
+            
+            selectedUsers.clear();
+            userCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedUsers.add(parseInt(checkbox.value));
+                }
+            });
+            updateUserSelectionInfo();
+        }
+
+        function updateUserSelectionInfo() {
+            const selectionInfo = document.getElementById('userSelectionInfo');
+            const selectionCount = document.getElementById('userSelectionCount');
+            
+            if (selectedUsers.size > 0) {
+                selectionInfo.style.display = 'block';
+                selectionCount.textContent = selectedUsers.size;
+            } else {
+                selectionInfo.style.display = 'none';
+            }
+        }
+
+        async function deleteSelectedUsers() {
+            if (selectedUsers.size === 0) {
+                alert('Please select users to delete');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete ${selectedUsers.size} user(s)?`)) return;
+            
+            let deletedCount = 0;
+            for (const userId of selectedUsers) {
+                try {
+                    const response = await fetch(`/api/users/${userId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                        }
+                    });
+                    if (response.ok) deletedCount++;
+                } catch (error) {
+                    console.error(`Error deleting user ${userId}:`, error);
+                }
+            }
+            
+            alert(`Successfully deleted ${deletedCount} user(s)`);
+            selectedUsers.clear();
+            updateUserSelectionInfo();
+            loadUsers();
         }
 
         function editUser(userId) {
-            const user = allUsers.find(u => u.id === userId);
+            const user = users.find(u => u.id === userId);
             if (!user) return;
             
-            currentEditingUserId = userId;
-            document.getElementById('user-modal-title').textContent = 'Edit User';
-            document.getElementById('edit-user-id').value = userId;
+            document.getElementById('userId').value = user.id;
             document.getElementById('username').value = user.username;
             document.getElementById('email').value = user.email;
-            document.getElementById('password').value = '';
-            document.getElementById('is_admin').checked = user.is_admin;
-            document.getElementById('is_active').checked = user.is_active;
-            document.getElementById('user-modal').style.display = 'block';
+            document.getElementById('role').value = user.role;
+            document.getElementById('isActive').checked = user.isActive;
+            document.getElementById('password').required = false;
+            document.getElementById('userModalTitle').textContent = 'Edit User';
+            
+            showModal('userModal');
         }
 
-        function openCreateUserModal() {
-            currentEditingUserId = null;
-            document.getElementById('user-modal-title').textContent = 'Create User';
-            document.getElementById('user-form').reset();
-            document.getElementById('edit-user-id').value = '';
-            document.getElementById('user-modal').style.display = 'block';
-        }
-
-        async function manageUserPermissions(userId, username) {
-            document.getElementById('perm-user-id').value = userId;
-            document.getElementById('permissions-modal-title').textContent = `Manage Permissions for ${username}`;
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user?')) return;
             
-            // Load folders with checkboxes
-            await loadFolders();
-            const folderContainer = document.getElementById('folder-checkboxes');
-            folderContainer.innerHTML = allFolders.map(folder => `
-                <label class="folder-checkbox">
-                    <input type="checkbox" name="folders" value="${folder.id}">
-                    ${folder.folder_name} (${folder.folder_path || 'No path'})
-                </label>
-            `).join('');
-            
-            document.getElementById('permissions-modal').style.display = 'block';
+            try {
+                const response = await fetch(`/api/users/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    showSuccess('User deleted successfully');
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to delete user');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showError('Failed to delete user');
+            }
         }
 
         // Folder Management Functions
         async function loadFolders() {
             try {
-                const response = await fetch('/api/folders');
-                const data = await response.json();
-                allFolders = data.folders || [];
+                const response = await fetch('/api/folders', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
+                });
                 
-                const container = document.getElementById('folders-container');
-                if (allFolders.length > 0) {
-                    container.innerHTML = `
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 50px;">
-                                        <input type="checkbox" id="select-all-folders-table" onchange="toggleSelectAllFoldersTable()">
-                                    </th>
-                                    <th onclick="sortAndReloadFolders('folder_name')">Folder Name <span class="sort-arrow">↕</span></th>
-                                    <th onclick="sortAndReloadFolders('folder_path')">Path <span class="sort-arrow">↕</span></th>
-                                    <th>Permission Level</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${allFolders.map(folder => `
-                                    <tr class="folder-item">
-                                        <td>
-                                            <input type="checkbox" value="${folder.id}" onchange="toggleFolderSelection(${folder.id})">
-                                        </td>
-                                        <td>${folder.folder_name}</td>
-                                        <td>${folder.folder_path || 'N/A'}</td>
-                                        <td>${folder.permission_level}</td>
-                                        <td>
-                                            <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
-                                            <button class="btn btn-warning" onclick="renameFolder(${folder.id}, '${folder.folder_name}')">Rename</button>
-                                            <button class="btn btn-danger" onclick="deleteFolder(${folder.id}, '${folder.folder_name}')">Delete</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
-                } else {
-                    container.innerHTML = '<p>No folders found. Create one using the buttons above or drag and drop a folder.</p>';
+                if (!response.ok) {
+                    throw new Error('Failed to load folders');
                 }
                 
-                updateSelectedFoldersCount();
+                folders = await response.json();
+                renderFolders();
             } catch (error) {
                 console.error('Error loading folders:', error);
-                document.getElementById('folders-container').innerHTML = '<p>Error loading folders.</p>';
+                showError('Failed to load folders');
             }
         }
 
-        function toggleSelectAllFoldersTable() {
-            const selectAllCheckbox = document.getElementById('select-all-folders-table');
-            const folderCheckboxes = document.querySelectorAll('.folder-item input[type="checkbox"]');
+        function renderFolders() {
+            const tbody = document.getElementById('folderTableBody');
+            tbody.innerHTML = '';
             
-            selectedFolders.clear();
-            folderCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-                if (selectAllCheckbox.checked) {
-                    selectedFolders.add(parseInt(checkbox.value));
-                }
+            folders.forEach(folder => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" value="${folder.id}" onchange="toggleFolderSelection(${folder.id})">
+                    </td>
+                    <td>${folder.name}</td>
+                    <td>${folder.path || '/'}</td>
+                    <td>${folder.permissionLevel === 'admin' ? 'Admin' : 'View Only'}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="viewEditFiles(${folder.id})">View/Edit Files</button>
+                        <button class="btn btn-warning" onclick="renameFolder(${folder.id}, '${folder.name}')">Rename</button>
+                        <button class="btn btn-danger" onclick="deleteFolder(${folder.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
             });
-            
-            // Also update the main select all checkbox
-            document.getElementById('select-all-folders').checked = selectAllCheckbox.checked;
-            updateSelectedFoldersCount();
         }
 
         function toggleFolderSelection(folderId) {
@@ -1271,19 +801,32 @@
             } else {
                 selectedFolders.add(folderId);
             }
-            updateSelectedFoldersCount();
+            updateFolderSelectionInfo();
+        }
+
+        function toggleSelectAllFolders() {
+            const selectAllCheckbox = document.getElementById('selectAllFolders');
+            const folderCheckboxes = document.querySelectorAll('#folderTableBody input[type="checkbox"]');
             
-            // Update select all checkbox state
-            const totalFolders = document.querySelectorAll('.folder-item input[type="checkbox"]').length;
-            const selectAllCheckbox = document.getElementById('select-all-folders');
-            const tableSelectAllCheckbox = document.getElementById('select-all-folders-table');
+            selectedFolders.clear();
+            folderCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedFolders.add(parseInt(checkbox.value));
+                }
+            });
+            updateFolderSelectionInfo();
+        }
+
+        function updateFolderSelectionInfo() {
+            const selectionInfo = document.getElementById('folderSelectionInfo');
+            const selectionCount = document.getElementById('folderSelectionCount');
             
-            if (selectedFolders.size === totalFolders) {
-                selectAllCheckbox.checked = true;
-                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = true;
+            if (selectedFolders.size > 0) {
+                selectionInfo.style.display = 'block';
+                selectionCount.textContent = selectedFolders.size;
             } else {
-                selectAllCheckbox.checked = false;
-                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = false;
+                selectionInfo.style.display = 'none';
             }
         }
 
@@ -1296,182 +839,133 @@
             if (!confirm(`Are you sure you want to delete ${selectedFolders.size} folder(s)? This will also delete all files in these folders.`)) return;
             
             let deletedCount = 0;
-            let errorCount = 0;
-            const folderIds = Array.from(selectedFolders);
-            
-            for (const folderId of folderIds) {
+            for (const folderId of selectedFolders) {
                 try {
                     const response = await fetch(`/api/folders/${folderId}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result && result.success !== false) {
-                            deletedCount++;
-                        } else {
-                            console.error(`Server error deleting folder ${folderId}:`, result?.message || 'Unknown error');
-                            errorCount++;
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
                         }
-                    } else {
-                        console.error(`HTTP error deleting folder ${folderId}:`, response.status, response.statusText);
-                        errorCount++;
-                    }
+                    });
+                    if (response.ok) deletedCount++;
                 } catch (error) {
-                    console.error(`Network error deleting folder ${folderId}:`, error);
-                    errorCount++;
+                    console.error(`Error deleting folder ${folderId}:`, error);
                 }
             }
             
-            if (deletedCount > 0) {
-                alert(`Successfully deleted ${deletedCount} folder(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
-            } else {
-                alert(`Failed to delete folders. Please check if the server is running and try again.`);
-            }
-            
+            showSuccess(`Successfully deleted ${deletedCount} folder(s)`);
             selectedFolders.clear();
-            
-            // Update checkboxes
-            document.getElementById('select-all-folders').checked = false;
-            const tableSelectAll = document.getElementById('select-all-folders-table');
-            if (tableSelectAll) tableSelectAll.checked = false;
-            
-            // Reload both folders and files to show updated data
-            await loadFolders();
-            await loadFiles();
+            updateFolderSelectionInfo();
+            loadFolders();
         }
 
-        async function deleteFolder(folderId, folderName) {
-            if (!confirm(`Are you sure you want to delete folder "${folderName}"? This will also delete all files in this folder.`)) return;
+        async function deleteFolder(folderId) {
+            if (!confirm('Are you sure you want to delete this folder and all its files?')) return;
             
             try {
                 const response = await fetch(`/api/folders/${folderId}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
                 });
                 
                 if (response.ok) {
-                    const result = await response.json();
-                    if (result && result.success !== false) {
-                        alert('Folder deleted successfully!');
-                        // Reload both folders and files to show updated data
-                        await loadFolders();
-                        await loadFiles();
-                    } else {
-                        alert('Error deleting folder: ' + (result?.message || 'Server returned an error'));
-                    }
+                    showSuccess('Folder deleted successfully');
+                    loadFolders();
                 } else {
-                    alert(`Error deleting folder: HTTP ${response.status} - ${response.statusText}`);
+                    const error = await response.json();
+                    showError(error.message || 'Failed to delete folder');
                 }
             } catch (error) {
                 console.error('Error deleting folder:', error);
-                alert('Error deleting folder: Network error or server is not responding');
+                showError('Failed to delete folder');
             }
         }
 
-        function sortAndReloadFolders(key) {
-            allFolders = sortTable(allFolders, key);
-            const container = document.getElementById('folders-container');
-            container.innerHTML = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">
-                                <input type="checkbox" id="select-all-folders-table" onchange="toggleSelectAllFoldersTable()">
-                            </th>
-                            <th onclick="sortAndReloadFolders('folder_name')">Folder Name <span class="sort-arrow">↕</span></th>
-                            <th onclick="sortAndReloadFolders('folder_path')">Path <span class="sort-arrow">↕</span></th>
-                            <th>Permission Level</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${allFolders.map(folder => `
-                            <tr class="folder-item">
-                                <td>
-                                    <input type="checkbox" value="${folder.id}" onchange="toggleFolderSelection(${folder.id})">
-                                </td>
-                                <td>${folder.folder_name}</td>
-                                <td>${folder.folder_path || 'N/A'}</td>
-                                <td>${folder.permission_level}</td>
-                                <td>
-                                    <button class="btn btn-primary" onclick="viewFolderFiles(${folder.id}, '${folder.folder_name}')">View/Edit Files</button>
-                                    <button class="btn btn-danger" onclick="deleteFolder(${folder.id}, '${folder.folder_name}')">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
+        function renameFolder(folderId, currentName) {
+            document.getElementById('renameFolderId').value = folderId;
+            document.getElementById('newFolderName').value = currentName;
+            showModal('renameFolderModal');
+        }
+
+        async function exportSelectedFolders() {
+            if (selectedFolders.size === 0) {
+                alert('Please select folders to export');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/folders/export', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify({ folderIds: Array.from(selectedFolders) })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'exported_folders.zip';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showSuccess('Folders exported successfully');
+                } else {
+                    showError('Failed to export folders');
+                }
+            } catch (error) {
+                console.error('Error exporting folders:', error);
+                showError('Failed to export folders');
+            }
         }
 
         // File Management Functions
         async function loadFiles() {
             try {
-                const response = await fetch('/api/files');
-                const data = await response.json();
-                allFiles = data.files || [];
+                const response = await fetch('/api/files', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
+                });
                 
-                const container = document.getElementById('files-container');
-                if (allFiles.length > 0) {
-                    container.innerHTML = `
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 50px;">
-                                        <input type="checkbox" id="select-all-files-table" onchange="toggleSelectAllFilesTable()">
-                                    </th>
-                                    <th onclick="sortAndReloadFiles('original_name')">File Name <span class="sort-arrow">↕</span></th>
-                                    <th onclick="sortAndReloadFiles('folder_name')">Folder <span class="sort-arrow">↕</span></th>
-                                    <th>Uploaded By</th>
-                                    <th>Upload Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${allFiles.map(file => `
-                                    <tr class="file-item">
-                                        <td>
-                                            <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
-                                        </td>
-                                        <td>${file.original_name}</td>
-                                        <td>${file.folder_name}</td>
-                                        <td>${file.uploaded_by}</td>
-                                        <td>${new Date(file.upload_date).toLocaleDateString()}</td>
-                                        <td>
-                                            <a href="/view/${file.id}" class="btn btn-primary" target="_blank">View</a>
-                                            <button class="btn btn-danger" onclick="deleteFile(${file.id})">Delete</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    `;
-                } else {
-                    container.innerHTML = '<p>No files found. Upload files to a folder first.</p>';
+                if (!response.ok) {
+                    throw new Error('Failed to load files');
                 }
                 
-                updateSelectedFilesCount();
+                files = await response.json();
+                renderFiles();
             } catch (error) {
                 console.error('Error loading files:', error);
-                document.getElementById('files-container').innerHTML = '<p>Error loading files.</p>';
+                showError('Failed to load files');
             }
         }
 
-        function toggleSelectAllFilesTable() {
-            const selectAllCheckbox = document.getElementById('select-all-files-table');
-            const fileCheckboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
+        function renderFiles() {
+            const tbody = document.getElementById('fileTableBody');
+            tbody.innerHTML = '';
             
-            selectedFiles.clear();
-            fileCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
-                if (selectAllCheckbox.checked) {
-                    selectedFiles.add(parseInt(checkbox.value));
-                }
+            files.forEach(file => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
+                    </td>
+                    <td>${file.name}</td>
+                    <td>${file.folderName || 'N/A'}</td>
+                    <td>${formatFileSize(file.size)}</td>
+                    <td>
+                        <button class="btn btn-primary" onclick="viewFile(${file.id})">View</button>
+                        <button class="btn btn-danger" onclick="deleteFile(${file.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
             });
-            
-            // Also update the main select all checkbox
-            document.getElementById('select-all-files').checked = selectAllCheckbox.checked;
-            updateSelectedFilesCount();
         }
 
         function toggleFileSelection(fileId) {
@@ -1480,477 +974,32 @@
             } else {
                 selectedFiles.add(fileId);
             }
-            updateSelectedFilesCount();
+            updateFileSelectionInfo();
+        }
+
+        function toggleSelectAllFiles() {
+            const selectAllCheckbox = document.getElementById('selectAllFiles');
+            const fileCheckboxes = document.querySelectorAll('#fileTableBody input[type="checkbox"]');
             
-            // Update select all checkbox state
-            const totalFiles = document.querySelectorAll('.file-item input[type="checkbox"]').length;
-            const selectAllCheckbox = document.getElementById('select-all-files');
-            const tableSelectAllCheckbox = document.getElementById('select-all-files-table');
+            selectedFiles.clear();
+            fileCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+                if (selectAllCheckbox.checked) {
+                    selectedFiles.add(parseInt(checkbox.value));
+                }
+            });
+            updateFileSelectionInfo();
+        }
+
+        function updateFileSelectionInfo() {
+            const selectionInfo = document.getElementById('fileSelectionInfo');
+            const selectionCount = document.getElementById('fileSelectionCount');
             
-            if (selectedFiles.size === totalFiles) {
-                selectAllCheckbox.checked = true;
-                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = true;
+            if (selectedFiles.size > 0) {
+                selectionInfo.style.display = 'block';
+                selectionCount.textContent = selectedFiles.size;
             } else {
-                selectAllCheckbox.checked = false;
-                if (tableSelectAllCheckbox) tableSelectAllCheckbox.checked = false;
-            }
-        }
-
-        async function downloadSelectedFiles() {
-            if (selectedFiles.size === 0) {
-                alert('Please select files to download');
-                return;
-            }
-            
-            // For now, we'll download files one by one
-            // In a real implementation, you might want to create a zip file
-            for (const fileId of selectedFiles) {
-                try {
-                    const file = allFiles.find(f => f.id === fileId);
-                    if (file) {
-                        window.open(`/download/${fileId}`, '_blank');
-                    }
-                } catch (error) {
-                    console.error(`Error downloading file ${fileId}:`, error);
-                }
-            }
-        }
-
-        function sortAndReloadFiles(key) {
-            allFiles = sortTable(allFiles, key);
-            const container = document.getElementById('files-container');
-            container.innerHTML = `
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th style="width: 50px;">
-                                <input type="checkbox" id="select-all-files-table" onchange="toggleSelectAllFilesTable()">
-                            </th>
-                            <th onclick="sortAndReloadFiles('original_name')">File Name <span class="sort-arrow">↕</span></th>
-                            <th onclick="sortAndReloadFiles('folder_name')">Folder <span class="sort-arrow">↕</span></th>
-                            <th>Uploaded By</th>
-                            <th>Upload Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${allFiles.map(file => `
-                            <tr class="file-item">
-                                <td>
-                                    <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
-                                </td>
-                                <td>${file.original_name}</td>
-                                <td>${file.folder_name}</td>
-                                <td>${file.uploaded_by}</td>
-                                <td>${new Date(file.upload_date).toLocaleDateString()}</td>
-                                <td>
-                                    <a href="/view/${file.id}" class="btn btn-primary" target="_blank">View</a>
-                                    <button class="btn btn-danger" onclick="deleteFile(${file.id})">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-        }
-
-        // Continue with rest of the functions (viewFolderFiles, etc.)
-        async function viewFolderFiles(folderId, folderName) {
-            currentViewingFolderId = folderId;
-            selectedFiles.clear();
-            
-            document.getElementById('main-container').style.display = 'none';
-            document.getElementById('folder-files-container').style.display = 'block';
-            document.getElementById('folder-files-title').textContent = `Files in "${folderName}"`;
-            
-            try {
-                const response = await fetch(`/folders/${folderId}/files`);
-                const data = await response.json();
-                
-                const container = document.getElementById('folder-files-list');
-                if (data.success && data.files.length > 0) {
-                    container.innerHTML = `
-                        <div class="file-list-container">
-                            ${data.files.map(file => `
-                                <div class="file-item">
-                                    <input type="checkbox" value="${file.id}" onchange="toggleFileSelection(${file.id})">
-                                    <div class="file-item-name">
-                                        <strong>${file.original_name}</strong>
-                                        <br>
-                                        <small>Uploaded: ${new Date(file.upload_date).toLocaleDateString()}</small>
-                                    </div>
-                                    <div class="file-item-actions">
-                                        <a href="/view/${file.id}" class="btn btn-primary" target="_blank">View</a>
-                                        <button class="btn btn-danger" onclick="deleteSingleFile(${file.id})">Delete</button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = '<p>No files in this folder. Click "Add More Files" to upload.</p>';
-                }
-                
-                setupFolderUpload(folderId);
-                
-            } catch (error) {
-                console.error('Error loading folder files:', error);
-                document.getElementById('folder-files-list').innerHTML = '<p>Error loading files.</p>';
-            }
-        }
-
-        function backToFolders() {
-            document.getElementById('folder-files-container').style.display = 'none';
-            document.getElementById('main-container').style.display = 'block';
-            showTab('folders');
-        }
-
-        function selectAllFiles() {
-            const checkboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
-            checkboxes.forEach(cb => {
-                cb.checked = true;
-                selectedFiles.add(parseInt(cb.value));
-            });
-        }
-
-        function deselectAllFiles() {
-            const checkboxes = document.querySelectorAll('.file-item input[type="checkbox"]');
-            checkboxes.forEach(cb => {
-                cb.checked = false;
-            });
-            selectedFiles.clear();
-        }
-
-        // Remove the old deleteSelectedFiles function since we updated it above
-
-        async function deleteSingleFile(fileId) {
-            if (!confirm('Are you sure you want to delete this file?')) return;
-            
-            try {
-                const response = await fetch(`/api/files/${fileId}`, {
-                    method: 'DELETE'
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('File deleted successfully!');
-                    const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
-                    viewFolderFiles(currentViewingFolderId, folderName);
-                } else {
-                    alert('Error deleting file');
-                }
-            } catch (error) {
-                console.error('Error deleting file:', error);
-                alert('Error deleting file');
-            }
-        }
-
-        function showUploadToFolder() {
-            const uploadSection = document.getElementById('upload-to-folder');
-            uploadSection.style.display = uploadSection.style.display === 'none' ? 'block' : 'none';
-        }
-
-        function setupFolderUpload(folderId) {
-            const uploadArea = document.getElementById('folder-upload-area-single');
-            const fileInput = document.getElementById('folder-file-input');
-            
-            const newUploadArea = uploadArea.cloneNode(true);
-            uploadArea.parentNode.replaceChild(newUploadArea, uploadArea);
-            
-            newUploadArea.addEventListener('click', () => {
-                document.getElementById('folder-file-input').click();
-            });
-            
-            newUploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                newUploadArea.classList.add('dragover');
-            });
-            
-            newUploadArea.addEventListener('dragleave', () => {
-                newUploadArea.classList.remove('dragover');
-            });
-            
-            newUploadArea.addEventListener('drop', (e) => {
-                e.preventDefault();
-                newUploadArea.classList.remove('dragover');
-                handleFolderFilesUpload(e.dataTransfer.files, folderId);
-            });
-            
-            document.getElementById('folder-file-input').addEventListener('change', (e) => {
-                handleFolderFilesUpload(e.target.files, folderId);
-            });
-        }
-
-        async function handleFolderFilesUpload(files, folderId) {
-            const formData = new FormData();
-            let pdfCount = 0;
-            
-            Array.from(files).forEach(file => {
-                if (file.type === 'application/pdf') {
-                    formData.append('files', file);
-                    pdfCount++;
-                }
-            });
-            
-            if (pdfCount === 0) {
-                alert('Please select PDF files only');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/upload/${folderId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`Successfully uploaded ${data.uploaded} file(s)!`);
-                    document.getElementById('folder-file-input').value = '';
-                    const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
-                    viewFolderFiles(currentViewingFolderId, folderName);
-                } else {
-                    alert('Upload failed: ' + data.message);
-                }
-            } catch (error) {
-                console.error('Upload error:', error);
-                alert('Upload failed. Note: File uploads require AWS S3 configuration.');
-            }
-        }
-
-        // Modal functions
-        function openCreateFolderModal() {
-            document.getElementById('folder-form').reset();
-            document.getElementById('folder-modal').style.display = 'block';
-        }
-
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        // Handle user form submission
-        document.getElementById('user-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const userData = {
-                username: formData.get('username'),
-                email: formData.get('email'),
-                is_admin: formData.get('is_admin') === 'on',
-                is_active: formData.get('is_active') === 'on'
-            };
-            
-            const password = formData.get('password');
-            if (password) {
-                userData.password = password;
-            }
-
-            try {
-                const editUserId = document.getElementById('edit-user-id').value;
-                const url = editUserId ? `/api/users/${editUserId}` : '/api/users';
-                const method = editUserId ? 'PUT' : 'POST';
-                
-                if (!editUserId && !password) {
-                    alert('Password is required for new users');
-                    return;
-                }
-                
-                const response = await fetch(url, {
-                    method: method,
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(userData)
-                });
-
-                const result = await response.json();
-                
-                if (result.success) {
-                    closeModal('user-modal');
-                    loadUsers();
-                    alert(editUserId ? 'User updated successfully!' : 'User created successfully!');
-                } else {
-                    alert('Error: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error saving user:', error);
-                alert('Error saving user');
-            }
-        });
-
-        // Handle folder form submission
-        document.getElementById('folder-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const folderData = {
-                folder_name: formData.get('folder_name'),
-                folder_path: formData.get('folder_path'),
-                description: formData.get('description')
-            };
-
-            try {
-                const response = await fetch('/create_folder', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(folderData)
-                });
-
-                const result = await response.json();
-                
-                if (result.success) {
-                    closeModal('folder-modal');
-                    loadFolders();
-                    alert('Folder created successfully!');
-                } else {
-                    alert('Error: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error creating folder:', error);
-                alert('Error creating folder');
-            }
-        });
-
-        // Handle rename folder form submission
-        document.getElementById('rename-folder-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const folderId = document.getElementById('rename-folder-id').value;
-            const newName = document.getElementById('new_folder_name').value.trim();
-            const newPath = document.getElementById('new_folder_path').value.trim();
-            
-            if (!newName) {
-                alert('Folder name is required');
-                return;
-            }
-            
-            const folderData = {
-                folder_name: newName,
-                folder_path: newPath || null
-            };
-
-            try {
-                const response = await fetch(`/api/folders/${folderId}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(folderData)
-                });
-
-                const result = await response.json();
-                
-                if (result.success) {
-                    closeModal('rename-folder-modal');
-                    loadFolders();
-                    alert('Folder renamed successfully!');
-                } else {
-                    alert('Error renaming folder: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error renaming folder:', error);
-                alert('Error renaming folder');
-            }
-        });
-
-        // Export selected folders function
-        async function exportSelectedFolders() {
-            if (selectedFolders.size === 0) {
-                alert('Please select folders to export');
-                return;
-            }
-            
-            alert(`Export functionality for ${selectedFolders.size} folder(s) will be implemented soon.`);
-        }
-
-        // Handle permissions form submission
-        document.getElementById('permissions-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const userId = document.getElementById('perm-user-id').value;
-            const permissionLevel = document.getElementById('perm-level').value;
-            const selectedFolders = Array.from(document.querySelectorAll('input[name="folders"]:checked')).map(cb => cb.value);
-            
-            if (selectedFolders.length === 0) {
-                alert('Please select at least one folder');
-                return;
-            }
-            
-            let successCount = 0;
-            for (const folderId of selectedFolders) {
-                try {
-                    const response = await fetch('/api/permissions', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            user_id: parseInt(userId),
-                            folder_id: parseInt(folderId),
-                            permission_level: permissionLevel
-                        })
-                    });
-                    
-                    const result = await response.json();
-                    if (result.success) successCount++;
-                } catch (error) {
-                    console.error('Error granting permission:', error);
-                }
-            }
-            
-            alert(`Permissions granted for ${successCount} folder(s)`);
-            closeModal('permissions-modal');
-        });
-
-        // Delete functions
-        async function deleteUser(userId, username) {
-            if (!confirm(`Are you sure you want to delete user "${username}"? This will remove all access and the user will no longer be able to login.`)) return;
-            
-            try {
-                const response = await fetch(`/api/users/${userId}`, {
-                    method: 'DELETE'
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    loadUsers();
-                    alert('User deleted successfully! They can no longer access the system.');
-                } else {
-                    alert('Error: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error deleting user:', error);
-                alert('Error deleting user');
-            }
-        }
-
-        // Rename folder function
-        function renameFolder(folderId, currentName) {
-            document.getElementById('rename-folder-id').value = folderId;
-            document.getElementById('new_folder_name').value = currentName;
-            document.getElementById('new_folder_path').value = '';
-            document.getElementById('rename-folder-modal').style.display = 'block';
-        }
-
-        async function deleteFile(fileId) {
-            if (!confirm('Are you sure you want to delete this file?')) return;
-            
-            try {
-                const response = await fetch(`/api/files/${fileId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (response.ok) {
-                    const result = await response.json();
-                    if (result && result.success !== false) {
-                        alert('File deleted successfully!');
-                        // Reload both files and folders to show updated data
-                        await loadFiles();
-                        await loadFolders();
-                    } else {
-                        alert('Error deleting file: ' + (result?.message || 'Server returned an error'));
-                    }
-                } else {
-                    alert(`Error deleting file: HTTP ${response.status} - ${response.statusText}`);
-                }
-            } catch (error) {
-                console.error('Error deleting file:', error);
-                alert('Error deleting file: Network error or server is not responding');
+                selectionInfo.style.display = 'none';
             }
         }
 
@@ -1963,72 +1012,458 @@
             if (!confirm(`Are you sure you want to delete ${selectedFiles.size} file(s)?`)) return;
             
             let deletedCount = 0;
-            let errorCount = 0;
-            const fileIds = Array.from(selectedFiles);
-            
-            for (const fileId of fileIds) {
+            for (const fileId of selectedFiles) {
                 try {
                     const response = await fetch(`/api/files/${fileId}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        if (result && result.success !== false) {
-                            deletedCount++;
-                        } else {
-                            console.error(`Server error deleting file ${fileId}:`, result?.message || 'Unknown error');
-                            errorCount++;
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
                         }
-                    } else {
-                        console.error(`HTTP error deleting file ${fileId}:`, response.status, response.statusText);
-                        errorCount++;
-                    }
+                    });
+                    if (response.ok) deletedCount++;
                 } catch (error) {
-                    console.error(`Network error deleting file ${fileId}:`, error);
-                    errorCount++;
+                    console.error(`Error deleting file ${fileId}:`, error);
                 }
             }
             
-            if (deletedCount > 0) {
-                alert(`Successfully deleted ${deletedCount} file(s)${errorCount > 0 ? ` (${errorCount} failed)` : ''}`);
-            } else {
-                alert(`Failed to delete files. Please check if the server is running and try again.`);
-            }
-            
+            showSuccess(`Successfully deleted ${deletedCount} file(s)`);
             selectedFiles.clear();
-            
-            // Update checkboxes
-            document.getElementById('select-all-files').checked = false;
-            const tableSelectAll = document.getElementById('select-all-files-table');
-            if (tableSelectAll) tableSelectAll.checked = false;
-            
-            // Reload the appropriate view
-            if (currentViewingFolderId) {
-                const folderName = document.getElementById('folder-files-title').textContent.replace('Files in "', '').replace('"', '');
-                viewFolderFiles(currentViewingFolderId, folderName);
-            } else {
-                // Reload both files and folders to show updated data
-                await loadFiles();
-                await loadFolders();
-            }
+            updateFileSelectionInfo();
+            loadFiles();
         }
 
-        async function logout() {
+        async function deleteFile(fileId) {
+            if (!confirm('Are you sure you want to delete this file?')) return;
+            
             try {
-                await fetch('/logout');
-                window.location.href = '/';
+                const response = await fetch(`/api/files/${fileId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    }
+                });
+                
+                if (response.ok) {
+                    showSuccess('File deleted successfully');
+                    loadFiles();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to delete file');
+                }
             } catch (error) {
-                console.error('Logout error:', error);
-                window.location.href = '/';
+                console.error('Error deleting file:', error);
+                showError('Failed to delete file');
             }
         }
 
-        // Close modals when clicking outside
-        window.addEventListener('click', function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.style.display = 'none';
+        function viewFile(fileId) {
+            window.open(`/api/files/${fileId}/view`, '_blank');
+        }
+
+        function viewEditFiles(folderId) {
+            window.location.href = `folder_files.html?id=${folderId}`;
+        }
+
+        // Folder Upload Functions
+        function handleFolderUpload(event) {
+            const files = event.target.files;
+            handleFolderFiles(files);
+        }
+
+        async function handleFolderFiles(files) {
+            if (!files || files.length === 0) {
+                alert('No files selected');
+                return;
             }
+
+            // Filter for PDF files in the root folder only (ignore subfolders)
+            const pdfFiles = Array.from(files).filter(file => {
+                const isPDF = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+                
+                // Check if file is in root folder (no subdirectories)
+                if (file.webkitRelativePath) {
+                    const pathParts = file.webkitRelativePath.split('/');
+                    // Only include files that are directly in the main folder (pathParts.length === 2: folder/file.pdf)
+                    return isPDF && pathParts.length === 2;
+                } else {
+                    // Files selected without webkitRelativePath (direct file selection)
+                    return isPDF;
+                }
+            });
+
+            if (pdfFiles.length === 0) {
+                alert('No PDF files found in the root level of the selected folder. Only PDFs in the root level will be processed (subfolders are ignored).');
+                return;
+            }
+
+            // Get folder name from the first file's path
+            const folderName = pdfFiles[0].webkitRelativePath ? 
+                pdfFiles[0].webkitRelativePath.split('/')[0] : 
+                'Uploaded_Folder_' + Date.now();
+
+            try {
+                // Create folder first
+                const folderResponse = await fetch('/api/folders', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify({
+                        name: folderName,
+                        path: `/${folderName}`,
+                        permissionLevel: 'admin'
+                    })
+                });
+
+                if (!folderResponse.ok) {
+                    throw new Error('Failed to create folder');
+                }
+
+                const folder = await folderResponse.json();
+
+                // Upload files to the created folder
+                const formData = new FormData();
+                pdfFiles.forEach(file => {
+                    formData.append('files', file);
+                });
+                formData.append('folderId', folder.id);
+
+                const fileResponse = await fetch('/api/files/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: formData
+                });
+
+                if (fileResponse.ok) {
+                    showSuccess(`Successfully uploaded folder "${folderName}" with ${pdfFiles.length} PDF file(s)`);
+                    loadFolders();
+                } else {
+                    throw new Error('Failed to upload files');
+                }
+            } catch (error) {
+                console.error('Error uploading folder:', error);
+                showError('Failed to upload folder: ' + error.message);
+            }
+
+            // Reset file input
+            document.getElementById('folderUpload').value = '';
+        }
+
+        // Drag and Drop Functions
+        function setupDragAndDrop() {
+            const dropArea = document.getElementById('folderDropArea');
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropArea.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropArea.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight(e) {
+                dropArea.classList.add('dragover');
+            }
+
+            function unhighlight(e) {
+                dropArea.classList.remove('dragover');
+            }
+
+            dropArea.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const items = e.dataTransfer.items;
+                const files = [];
+                
+                if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                        if (items[i].kind === 'file') {
+                            const entry = items[i].webkitGetAsEntry();
+                            if (entry && entry.isDirectory) {
+                                readDirectoryRecursive(entry, files, () => {
+                                    handleFolderFiles(files);
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+
+            function readDirectoryRecursive(entry, files, callback) {
+                if (entry.isFile) {
+                    entry.file(file => {
+                        file.webkitRelativePath = entry.fullPath.substring(1);
+                        files.push(file);
+                    });
+                } else if (entry.isDirectory) {
+                    const reader = entry.createReader();
+                    reader.readEntries(entries => {
+                        let pending = entries.length;
+                        if (pending === 0) {
+                            callback();
+                            return;
+                        }
+                        
+                        entries.forEach(childEntry => {
+                            readDirectoryRecursive(childEntry, files, () => {
+                                pending--;
+                                if (pending === 0) {
+                                    callback();
+                                }
+                            });
+                        });
+                    });
+                }
+            }
+        }
+
+        // Form Handlers
+        document.getElementById('userForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const userData = {
+                username: formData.get('username'),
+                email: formData.get('email'),
+                role: formData.get('role'),
+                isActive: formData.get('isActive') === 'on'
+            };
+            
+            if (formData.get('password')) {
+                userData.password = formData.get('password');
+            }
+            
+            const userId = formData.get('userId');
+            const isEdit = userId && userId !== '';
+            
+            try {
+                const response = await fetch(`/api/users${isEdit ? '/' + userId : ''}`, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                if (response.ok) {
+                    showSuccess(`User ${isEdit ? 'updated' : 'created'} successfully`);
+                    hideModal('userModal');
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || `Failed to ${isEdit ? 'update' : 'create'} user`);
+                }
+            } catch (error) {
+                console.error('Error saving user:', error);
+                showError(`Failed to ${isEdit ? 'update' : 'create'} user`);
+            }
+        });
+
+        document.getElementById('folderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const folderData = {
+                name: formData.get('folderName'),
+                path: formData.get('folderPath') || '/',
+                permissionLevel: formData.get('permissionLevel')
+            };
+            
+            const folderId = formData.get('folderId');
+            const isEdit = folderId && folderId !== '';
+            
+            try {
+                const response = await fetch(`/api/folders${isEdit ? '/' + folderId : ''}`, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify(folderData)
+                });
+                
+                if (response.ok) {
+                    showSuccess(`Folder ${isEdit ? 'updated' : 'created'} successfully`);
+                    hideModal('folderModal');
+                    loadFolders();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || `Failed to ${isEdit ? 'update' : 'create'} folder`);
+                }
+            } catch (error) {
+                console.error('Error saving folder:', error);
+                showError(`Failed to ${isEdit ? 'update' : 'create'} folder`);
+            }
+        });
+
+        document.getElementById('renameFolderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const folderId = document.getElementById('renameFolderId').value;
+            const newName = document.getElementById('newFolderName').value.trim();
+            
+            if (!newName) {
+                alert('Please enter a folder name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/folders/${folderId}/rename`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
+                
+                if (response.ok) {
+                    showSuccess('Folder renamed successfully');
+                    hideModal('renameFolderModal');
+                    loadFolders();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to rename folder');
+                }
+            } catch (error) {
+                console.error('Error renaming folder:', error);
+                showError('Failed to rename folder');
+            }
+        });
+
+        // User Permissions Functions
+        async function showUserPermissions(userId) {
+            currentUser = users.find(u => u.id === userId);
+            if (!currentUser) return;
+            
+            // Load all folders for permissions
+            await loadFolders();
+            
+            const permissionsList = document.getElementById('permissionsList');
+            permissionsList.innerHTML = '';
+            
+            folders.forEach(folder => {
+                const div = document.createElement('div');
+                div.className = 'permission-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="folder_${folder.id}" value="${folder.id}">
+                    <label for="folder_${folder.id}">${folder.name} (${folder.path})</label>
+                `;
+                permissionsList.appendChild(div);
+            });
+            
+            showModal('userPermissionsModal');
+        }
+
+        function toggleAllPermissions() {
+            const selectAll = document.getElementById('selectAllPermissions');
+            const checkboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]');
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
+        }
+
+        async function saveUserPermissions() {
+            const selectedFolderIds = [];
+            const checkboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]:checked');
+            const permissionLevel = document.getElementById('userPermissionLevel').value;
+            
+            checkboxes.forEach(checkbox => {
+                selectedFolderIds.push(parseInt(checkbox.value));
+            });
+            
+            try {
+                const response = await fetch(`/api/users/${currentUser.id}/permissions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify({
+                        folderIds: selectedFolderIds,
+                        permissionLevel: permissionLevel
+                    })
+                });
+                
+                if (response.ok) {
+                    showSuccess('User permissions updated successfully');
+                    hideModal('userPermissionsModal');
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to update permissions');
+                }
+            } catch (error) {
+                console.error('Error updating permissions:', error);
+                showError('Failed to update permissions');
+            }
+        }
+
+        // Utility Functions
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(errorDiv, container.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(successDiv, container.firstChild);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 5000);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication
+            if (!checkAuth()) return;
+            
+            // Setup drag and drop
+            setupDragAndDrop();
+            
+            // Load initial data
+            loadUsers();
+            
+            // Close modals when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            });
         });
     </script>
 </body>
