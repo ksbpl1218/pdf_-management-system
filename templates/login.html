@@ -168,21 +168,6 @@
             display: none;
         }
         
-        .back-to-login {
-            text-align: center;
-            margin-top: 1rem;
-        }
-        
-        .back-to-login a {
-            color: #667eea;
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-        
-        .back-to-login a:hover {
-            text-decoration: underline;
-        }
-        
         .loading {
             display: none;
             text-align: center;
@@ -290,7 +275,7 @@
                 .then(response => {
                     if (response.ok) {
                         // Token is valid, redirect to dashboard
-                        window.location.href = 'admin_dashboard.html';
+                        window.location.href = '/admin_dashboard.html';
                     } else {
                         // Token is invalid, remove it
                         localStorage.removeItem('adminToken');
@@ -377,7 +362,7 @@
                     localStorage.setItem('adminToken', data.token);
                     
                     // Redirect to admin dashboard
-                    window.location.href = 'admin_dashboard.html';
+                    window.location.href = '/admin_dashboard.html';
                 } else {
                     showError('loginError', data.message || 'Invalid username or password');
                 }
@@ -437,19 +422,6 @@
             inputs.forEach(input => {
                 input.addEventListener('input', clearMessages);
             });
-        });
-
-        // Handle Enter key in forms
-        document.getElementById('loginFormElement').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                handleLogin(e);
-            }
-        });
-
-        document.getElementById('forgotPasswordFormElement').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                handleForgotPassword(e);
-            }
         });
     </script>
 </body>
