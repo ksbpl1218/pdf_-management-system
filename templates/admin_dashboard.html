@@ -1,238 +1,4 @@
-// Form Handlers
-        document.getElementById('userForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const userData = {
-                username: formData.get('username'),
-                email: formData.get('email'),
-                role: formData.get('role'),
-                isActive: formData.get('isActive') === 'on'
-            };
-            
-            if (formData.get('password')) {
-                userData.password = formData.get('password');
-            }
-            
-            const userId = formData.get('userId');
-            const isEdit = userId && userId !== '';
-            
-            try {
-                const response = await fetch(`/api/users${isEdit ? '/' + userId : ''}`, {
-                    method: isEdit ? 'PUT' : 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-                    },
-                    body: JSON.stringify(userData)
-                });
-                
-                if (response.ok) {
-                    showSuccess(`User ${isEdit ? 'updated' : 'created'} successfully`);
-                    hideModal('userModal');
-                    loadUsers();
-                } else {
-                    const error = await response.json();
-                    showError(error.message || `Failed to ${isEdit ? 'update' : 'create'} user`);
-                }
-            } catch (error) {
-                console.error('Error saving user:', error);
-                showError(`Failed to ${isEdit ? 'update' : 'create'} user`);
-            }
-        });
-
-        document.getElementById('folderForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const folderData = {
-                name: formData.get('folderName'),
-                path: formData.get('folderPath') || '/',
-                permissionLevel: formData.get('permissionLevel')
-            };
-            
-            const folderId = formData.get('folderId');
-            const isEdit = folderId && folderId !== '';
-            
-            try {
-                const response = await fetch(`/api/folders${isEdit ? '/' + folderId : ''}`, {
-                    method: isEdit ? 'PUT' : 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-                    },
-                    body: JSON.stringify(folderData)
-                });
-                
-                if (response.ok) {
-                    showSuccess(`Folder ${isEdit ? 'updated' : 'created'} successfully`);
-                    hideModal('folderModal');
-                    loadFolders();
-                } else {
-                    const error = await response.json();
-                    showError(error.message || `Failed to ${isEdit ? 'update' : 'create'} folder`);
-                }
-            } catch (error) {
-                console.error('Error saving folder:', error);
-                showError(`Failed to ${isEdit ? 'update' : 'create'} folder`);
-            }
-        });
-
-        document.getElementById('renameFolderForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const folderId = document.getElementById('renameFolderId').value;
-            const newName = document.getElementById('newFolderName').value.trim();
-            
-            if (!newName) {
-                alert('Please enter a folder name');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/folders/${folderId}/rename`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-                    },
-                    body: JSON.stringify({ name: newName })
-                });
-                
-                if (response.ok) {
-                    showSuccess('Folder renamed successfully');
-                    hideModal('renameFolderModal');
-                    loadFolders();
-                } else {
-                    const error = await response.json();
-                    showError(error.message || 'Failed to rename folder');
-                }
-            } catch (error) {
-                console.error('Error renaming folder:', error);
-                showError('Failed to rename folder');
-            }
-        });
-
-        // User Permissions Functions
-        async function showUserPermissions(userId) {
-            currentUser = users.find(u => u.id === userId);
-            if (!currentUser) return;
-            
-            await loadFolders();
-            
-            const permissionsList = document.getElementById('permissionsList');
-            permissionsList.innerHTML = '';
-            
-            folders.forEach(folder => {
-                const div = document.createElement('div');
-                div.className = 'permission-item';
-                div.innerHTML = `
-                    <input type="checkbox" id="folder_${folder.id}" value="${folder.id}">
-                    <label for="folder_${folder.id}">${folder.name} (${folder.path})</label>
-                `;
-                permissionsList.appendChild(div);
-            });
-            
-            showModal('userPermissionsModal');
-        }
-
-        function toggleAllPermissions() {
-            const selectAll = document.getElementById('selectAllPermissions');
-            const checkboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]');
-            
-            checkboxes.forEach(checkbox => {
-                checkbox.checked = selectAll.checked;
-            });
-        }
-
-        async function saveUserPermissions() {
-            const selectedFolderIds = [];
-            const checkboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]:checked');
-            const permissionLevel = document.getElementById('userPermissionLevel').value;
-            
-            checkboxes.forEach(checkbox => {
-                selectedFolderIds.push(parseInt(checkbox.value));
-            });
-            
-            try {
-                const response = await fetch(`/api/users/${currentUser.id}/permissions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
-                    },
-                    body: JSON.stringify({
-                        folderIds: selectedFolderIds,
-                        permissionLevel: permissionLevel
-                    })
-                });
-                
-                if (response.ok) {
-                    showSuccess('User permissions updated successfully');
-                    hideModal('userPermissionsModal');
-                } else {
-                    const error = await response.json();
-                    showError(error.message || 'Failed to update permissions');
-                }
-            } catch (error) {
-                console.error('Error updating permissions:', error);
-                showError('Failed to update permissions');
-            }
-        }
-
-        // Utility Functions
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        function showError(message) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.textContent = message;
-            
-            const container = document.querySelector('.container');
-            container.insertBefore(errorDiv, container.firstChild);
-            
-            setTimeout(() => {
-                errorDiv.remove();
-            }, 5000);
-        }
-
-        function showSuccess(message) {
-            const successDiv = document.createElement('div');
-            successDiv.className = 'success-message';
-            successDiv.textContent = message;
-            
-            const container = document.querySelector('.container');
-            container.insertBefore(successDiv, container.firstChild);
-            
-            setTimeout(() => {
-                successDiv.remove();
-            }, 5000);
-        }
-
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Check authentication
-            if (!checkAuth()) return;
-            
-            // Load initial data
-            loadUsers();
-            
-            // Close modals when clicking outside
-            window.addEventListener('click', function(event) {
-                if (event.target.classList.contains('modal')) {
-                    event.target.style.display = 'none';
-                }
-            });
-        });
-    </script>
-</body>
-</html><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1639,3 +1405,239 @@
         function viewFile(fileId) {
             window.open(`/api/files/${fileId}/view`, '_blank');
         }
+
+        // Form Handlers
+        document.getElementById('userForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const userData = {
+                username: formData.get('username'),
+                email: formData.get('email'),
+                role: formData.get('role'),
+                isActive: formData.get('isActive') === 'on'
+            };
+            
+            if (formData.get('password')) {
+                userData.password = formData.get('password');
+            }
+            
+            const userId = formData.get('userId');
+            const isEdit = userId && userId !== '';
+            
+            try {
+                const response = await fetch(`/api/users${isEdit ? '/' + userId : ''}`, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                if (response.ok) {
+                    showSuccess(`User ${isEdit ? 'updated' : 'created'} successfully`);
+                    hideModal('userModal');
+                    loadUsers();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || `Failed to ${isEdit ? 'update' : 'create'} user`);
+                }
+            } catch (error) {
+                console.error('Error saving user:', error);
+                showError(`Failed to ${isEdit ? 'update' : 'create'} user`);
+            }
+        });
+
+        document.getElementById('folderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            const folderData = {
+                name: formData.get('folderName'),
+                path: formData.get('folderPath') || '/',
+                permissionLevel: formData.get('permissionLevel')
+            };
+            
+            const folderId = formData.get('folderId');
+            const isEdit = folderId && folderId !== '';
+            
+            try {
+                const response = await fetch(`/api/folders${isEdit ? '/' + folderId : ''}`, {
+                    method: isEdit ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify(folderData)
+                });
+                
+                if (response.ok) {
+                    showSuccess(`Folder ${isEdit ? 'updated' : 'created'} successfully`);
+                    hideModal('folderModal');
+                    loadFolders();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || `Failed to ${isEdit ? 'update' : 'create'} folder`);
+                }
+            } catch (error) {
+                console.error('Error saving folder:', error);
+                showError(`Failed to ${isEdit ? 'update' : 'create'} folder`);
+            }
+        });
+
+        document.getElementById('renameFolderForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const folderId = document.getElementById('renameFolderId').value;
+            const newName = document.getElementById('newFolderName').value.trim();
+            
+            if (!newName) {
+                alert('Please enter a folder name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/folders/${folderId}/rename`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify({ name: newName })
+                });
+                
+                if (response.ok) {
+                    showSuccess('Folder renamed successfully');
+                    hideModal('renameFolderModal');
+                    loadFolders();
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to rename folder');
+                }
+            } catch (error) {
+                console.error('Error renaming folder:', error);
+                showError('Failed to rename folder');
+            }
+        });
+
+        // User Permissions Functions
+        async function showUserPermissions(userId) {
+            currentUser = users.find(u => u.id === userId);
+            if (!currentUser) return;
+            
+            await loadFolders();
+            
+            const permissionsList = document.getElementById('permissionsList');
+            permissionsList.innerHTML = '';
+            
+            folders.forEach(folder => {
+                const div = document.createElement('div');
+                div.className = 'permission-item';
+                div.innerHTML = `
+                    <input type="checkbox" id="folder_${folder.id}" value="${folder.id}">
+                    <label for="folder_${folder.id}">${folder.name} (${folder.path})</label>
+                `;
+                permissionsList.appendChild(div);
+            });
+            
+            showModal('userPermissionsModal');
+        }
+
+        function toggleAllPermissions() {
+            const selectAll = document.getElementById('selectAllPermissions');
+            const checkboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]');
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
+        }
+
+        async function saveUserPermissions() {
+            const selectedFolderIds = [];
+            const checkboxes = document.querySelectorAll('#permissionsList input[type="checkbox"]:checked');
+            const permissionLevel = document.getElementById('userPermissionLevel').value;
+            
+            checkboxes.forEach(checkbox => {
+                selectedFolderIds.push(parseInt(checkbox.value));
+            });
+            
+            try {
+                const response = await fetch(`/api/users/${currentUser.id}/permissions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('adminToken')}`
+                    },
+                    body: JSON.stringify({
+                        folderIds: selectedFolderIds,
+                        permissionLevel: permissionLevel
+                    })
+                });
+                
+                if (response.ok) {
+                    showSuccess('User permissions updated successfully');
+                    hideModal('userPermissionsModal');
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to update permissions');
+                }
+            } catch (error) {
+                console.error('Error updating permissions:', error);
+                showError('Failed to update permissions');
+            }
+        }
+
+        // Utility Functions
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(errorDiv, container.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(successDiv, container.firstChild);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 5000);
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication
+            if (!checkAuth()) return;
+            
+            // Load initial data
+            loadUsers();
+            
+            // Close modals when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
