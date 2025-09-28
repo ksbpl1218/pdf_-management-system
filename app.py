@@ -5,8 +5,8 @@ from functools import wraps
 import secrets
 import string
 import smtplib
-from email.mime.text import MimeText
-from email.mime.multipart import MimeMultipart
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, send_file
 from flask_sqlalchemy import SQLAlchemy
@@ -138,12 +138,12 @@ def generate_random_password(length=12):
 def send_email(to_email, subject, body):
     """Send email using SMTP"""
     try:
-        msg = MimeMultipart()
+        msg = MIMEMultipart()
         msg['From'] = EMAIL_USERNAME
         msg['To'] = to_email
         msg['Subject'] = subject
         
-        msg.attach(MimeText(body, 'plain'))
+        msg.attach(MIMEText(body, 'plain'))
         
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
