@@ -216,13 +216,51 @@
             display: flex;
             gap: 0.5rem;
         }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #f5c6cb;
+        }
+        .success-message {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+            border: 1px solid #bee5eb;
+        }
     </style>
 </head>
 <body>
+    <!-- Authentication Check -->
+    <script>
+        // Check if user is logged in
+        const checkAuth = () => {
+            const token = localStorage.getItem('userToken');
+            const username = localStorage.getItem('username');
+            
+            if (!token || !username) {
+                // Redirect to login page if not authenticated
+                window.location.href = '/login.html';
+                return false;
+            }
+            return true;
+        };
+
+        // Run auth check immediately
+        if (!checkAuth()) {
+            // Stop loading the page if not authenticated
+            document.body.style.display = 'none';
+        }
+    </script>
+
     <div class="header">
         <h1>PDF Management System - User Dashboard</h1>
         <div class="user-info">
-            <span>Welcome, User</span>
+            <span>Welcome, <span id="username-display">User</span></span>
             <div class="user-actions">
                 <button class="forgot-password-btn" onclick="openForgotPasswordModal()">Reset Password</button>
                 <button class="logout-btn" onclick="logout()">Logout</button>
@@ -274,27 +312,57 @@
 
     <script>
         let currentFolderId = null;
+        let currentUser = null;
 
-        // Load folders on page load
+        // Load user data and folders on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Check authentication first
+            if (!checkAuth()) return;
+            
+            // Load user info
+            loadUserInfo();
+            
+            // Load folders
             loadFolders();
         });
 
+        function loadUserInfo() {
+            const username = localStorage.getItem('username');
+            if (username) {
+                document.getElementById('username-display').textContent = username;
+            }
+        }
+
         async function loadFolders() {
             try {
-                const response = await fetch('/api/folders');
-                const data = await response.json();
+                const token = localStorage.getItem('userToken');
+                const response = await fetch('/api/user/folders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        // Token expired or invalid
+                        logout();
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
                 const container = document.getElementById('folders-container');
                 
                 if (data.folders && data.folders.length > 0) {
                     container.innerHTML = `
                         <div class="folder-list">
                             ${data.folders.map(folder => `
-                                <div class="folder-card" onclick="openFolder(${folder.id}, '${folder.folder_name}')">
-                                    <div class="folder-name">${folder.folder_name}</div>
-                                    <div class="folder-path">${folder.folder_path}</div>
-                                    <span class="permission-badge">${folder.permission_level}</span>
+                                <div class="folder-card" onclick="openFolder(${folder.id}, '${folder.name}')">
+                                    <div class="folder-name">${folder.name}</div>
+                                    <div class="folder-path">${folder.path || '/'}</div>
+                                    <span class="permission-badge">${folder.permissionLevel || 'View Only'}</span>
                                 </div>
                             `).join('')}
                         </div>
@@ -304,7 +372,8 @@
                 }
             } catch (error) {
                 console.error('Error loading folders:', error);
-                document.getElementById('folders-container').innerHTML = '<div class="no-folders">Error loading folders.</div>';
+                const container = document.getElementById('folders-container');
+                container.innerHTML = '<div class="error-message">Error loading folders. Please try refreshing the page.</div>';
             }
         }
 
@@ -314,22 +383,36 @@
             document.getElementById('files-modal').style.display = 'block';
             
             try {
-                const response = await fetch(`/folders/${folderId}/files`);
-                const data = await response.json();
+                const token = localStorage.getItem('userToken');
+                const response = await fetch(`/api/folders/${folderId}/files`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        logout();
+                        return;
+                    }
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
                 const container = document.getElementById('files-container');
                 
-                if (data.success && data.files.length > 0) {
+                if (data.files && data.files.length > 0) {
                     container.innerHTML = `
                         <ul class="file-list">
                             ${data.files.map(file => `
                                 <li class="file-item">
                                     <div>
-                                        <strong>${file.original_name}</strong>
+                                        <strong>${file.name || file.original_name}</strong>
                                         <br>
-                                        <small>Uploaded: ${new Date(file.upload_date).toLocaleDateString()}</small>
+                                        <small>Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.upload_date || file.created_at)}</small>
                                     </div>
-                                    <a href="/view/${file.id}" class="view-btn" target="_blank">View PDF</a>
+                                    <a href="/api/files/${file.id}/view" class="view-btn" target="_blank">View PDF</a>
                                 </li>
                             `).join('')}
                         </ul>
@@ -339,7 +422,7 @@
                 }
             } catch (error) {
                 console.error('Error loading files:', error);
-                document.getElementById('files-container').innerHTML = '<div class="no-folders">Error loading files.</div>';
+                document.getElementById('files-container').innerHTML = '<div class="error-message">Error loading files. Please try again.</div>';
             }
         }
 
@@ -359,12 +442,12 @@
             const email = formData.get('email');
             
             if (!email) {
-                alert('Please enter your email address');
+                showError('Please enter your email address');
                 return;
             }
             
             try {
-                const response = await fetch('/forgot-password', {
+                const response = await fetch('/api/password-reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
@@ -372,16 +455,16 @@
                 
                 const result = await response.json();
                 
-                if (result.success) {
-                    alert('Password reset instructions have been sent to your email. Please check your inbox and spam folder.');
+                if (response.ok && result.success) {
+                    showSuccess('Password reset instructions have been sent to your email. Please check your inbox and spam folder.');
                     closeModal('forgot-password-modal');
                     document.getElementById('forgot-password-form').reset();
                 } else {
-                    alert('Error: ' + result.message);
+                    showError(result.message || 'Error processing password reset request');
                 }
             } catch (error) {
                 console.error('Forgot password error:', error);
-                alert('Error processing password reset request. Please try again.');
+                showError('Error processing password reset request. Please try again.');
             }
         });
 
@@ -397,14 +480,58 @@
             }
         });
 
-        async function logout() {
+        function logout() {
+            // Clear user data
+            localStorage.removeItem('userToken');
+            localStorage.removeItem('username');
+            localStorage.removeItem('userRole');
+            
+            // Redirect to login
+            window.location.href = '/login.html';
+        }
+
+        // Utility functions
+        function formatFileSize(bytes) {
+            if (!bytes) return 'Unknown';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Unknown';
             try {
-                await fetch('/logout');
-                window.location.href = '/';
-            } catch (error) {
-                console.error('Logout error:', error);
-                window.location.href = '/';
+                return new Date(dateString).toLocaleDateString();
+            } catch (e) {
+                return 'Unknown';
             }
+        }
+
+        function showError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(errorDiv, container.firstChild);
+            
+            setTimeout(() => {
+                errorDiv.remove();
+            }, 5000);
+        }
+
+        function showSuccess(message) {
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            
+            const container = document.querySelector('.container');
+            container.insertBefore(successDiv, container.firstChild);
+            
+            setTimeout(() => {
+                successDiv.remove();
+            }, 5000);
         }
     </script>
 </body>
