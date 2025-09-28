@@ -69,7 +69,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
-    role = db.Column(db.String(50), nullable=False, default='view_only')  # 'view_only' or 'admin'
+    role = db.Column(db.String(50), nullable=False, default='view_only')
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -236,26 +236,25 @@ def init_database():
         logger.info("Starting database initialization...")
         
         # Create tables
-        with app.app_context():
-            db.create_all()
-            logger.info("Database tables created successfully")
-            
-            # Check if admin user exists
-            admin_user = User.query.filter_by(username='admin').first()
-            if not admin_user:
-                admin_user = User(
-                    username='admin',
-                    email='admin@example.com',
-                    role='admin',
-                    is_active=True
-                )
-                admin_user.set_password('admin123')
-                db.session.add(admin_user)
-                db.session.commit()
-                logger.info("Default admin user created")
-            else:
-                logger.info("Admin user already exists")
-            
+        db.create_all()
+        logger.info("Database tables created successfully")
+        
+        # Check if admin user exists
+        admin_user = User.query.filter_by(username='admin').first()
+        if not admin_user:
+            admin_user = User(
+                username='admin',
+                email='admin@example.com',
+                role='admin',
+                is_active=True
+            )
+            admin_user.set_password('admin123')
+            db.session.add(admin_user)
+            db.session.commit()
+            logger.info("Default admin user created")
+        else:
+            logger.info("Admin user already exists")
+        
         logger.info("Database initialization completed successfully")
         return True
         
@@ -267,27 +266,23 @@ def init_database():
             pass
         return False
 
-# Database initialization (run once)
-def init_app():
-    """Initialize the app and database"""
-    init_database()
-
-# Call initialization
+# Initialize database
 with app.app_context():
-    init_app()
+    init_database()
 
 # Routes
 @app.route('/')
 def index():
-    return send_from_directory('.', 'admin_dashboard.html')
+    return redirect(url_for('login_page'))
 
+@app.route('/login')
 @app.route('/login.html')
 def login_page():
-    return send_from_directory('.', 'login.html')
+    return render_template('login.html')
 
 @app.route('/admin_dashboard.html')
 def admin_dashboard():
-    return send_from_directory('.', 'admin_dashboard.html')
+    return render_template('admin_dashboard.html')
 
 # Authentication API Routes
 @app.route('/api/auth/login', methods=['POST'])
@@ -663,6 +658,10 @@ def upload_files(current_user):
             if not file.filename.lower().endswith('.pdf'):
                 continue
             
+            # Read file content first
+            file_content = file.read()
+            file.seek(0)  # Reset file pointer
+            
             # Generate secure filename
             original_filename = secure_filename(file.filename)
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
@@ -677,13 +676,10 @@ def upload_files(current_user):
             file_record = File(
                 filename=filename,
                 original_filename=original_filename,
-                file_size=len(file.read()),
+                file_size=len(file_content),
                 s3_key=s3_key,
                 folder_id=folder_id
             )
-            
-            # Reset file pointer after reading size
-            file.seek(0)
             
             db.session.add(file_record)
             uploaded_files.append(file_record)
@@ -745,7 +741,7 @@ def view_file(current_user, file_id):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    host = '0.0.0.0'  # This is crucial for Render deployment
+    host = '0.0.0.0'
     debug = os.environ.get('FLASK_ENV') == 'development'
     
     logger.info(f"Starting Flask app on {host}:{port}")
