@@ -1,168 +1,455 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>PDF Management - Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - PDF Management System</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f5f5f5; }
-        .login-container { max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .form-group { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background: #0056b3; }
-        .error { color: red; margin-top: 10px; }
-        .success { color: green; margin-top: 10px; }
-        .forgot-link { text-align: center; margin-top: 20px; }
-        .forgot-link a { color: #007bff; text-decoration: none; }
-        .forgot-link a:hover { text-decoration: underline; }
-        .back-to-login { text-align: center; margin-top: 15px; }
-        .back-to-login a { color: #6c757d; text-decoration: none; font-size: 14px; }
-        .back-to-login a:hover { text-decoration: underline; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .login-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 400px;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .login-header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .login-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .login-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .login-form {
+            padding: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            text-align: center;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #dee2e6;
+        }
+        
+        .btn-secondary:hover {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .forgot-password-link {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        
+        .forgot-password-link a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .forgot-password-link a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #f5c6cb;
+            font-size: 0.9rem;
+        }
+        
+        .success-message {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            padding: 0.75rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            border: 1px solid #bee5eb;
+            font-size: 0.9rem;
+        }
+        
+        .forgot-password-form {
+            display: none;
+        }
+        
+        .back-to-login {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        
+        .back-to-login a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .back-to-login a:hover {
+            text-decoration: underline;
+        }
+        
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 1rem;
+        }
+        
+        .spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
-    <!-- Login Form -->
-    <div class="login-container" id="loginContainer">
-        <h2>PDF Management System</h2>
-        <form id="loginForm">
-            <div class="form-group">
-                <label for="username">Username:</label>
-                <input type="text" id="username" name="username" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" required>
-            </div>
-            <button type="submit">Login</button>
-        </form>
-        <div class="error" id="error-message"></div>
-        <div class="forgot-link">
-            <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>PDF Management System</h1>
+            <p>Admin Login Portal</p>
         </div>
-    </div>
-
-    <!-- Forgot Password Form -->
-    <div class="login-container" id="forgotPasswordContainer" style="display: none;">
-        <h2>Reset Password</h2>
-        <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
-            Enter your email address and we'll send you instructions to reset your password.
-        </p>
-        <form id="forgotPasswordForm">
-            <div class="form-group">
-                <label for="reset_email">Email Address:</label>
-                <input type="email" id="reset_email" name="email" required placeholder="Enter your email address">
+        
+        <!-- Login Form -->
+        <div id="loginForm" class="login-form">
+            <div id="loginError" class="error-message" style="display: none;"></div>
+            
+            <form id="loginFormElement" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label for="username">Username or Email:</label>
+                    <input type="text" id="username" name="username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="loginBtn">
+                        <span id="loginBtnText">Login</span>
+                        <div id="loginLoading" class="loading">
+                            <div class="spinner"></div>
+                            Logging in...
+                        </div>
+                    </button>
+                </div>
+            </form>
+            
+            <div class="forgot-password-link">
+                <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
             </div>
-            <button type="submit">Send Reset Instructions</button>
-        </form>
-        <div class="error" id="forgot-error-message"></div>
-        <div class="success" id="forgot-success-message"></div>
-        <div class="back-to-login">
-            <a href="#" onclick="showLogin()">← Back to Login</a>
+        </div>
+        
+        <!-- Forgot Password Form -->
+        <div id="forgotPasswordForm" class="login-form forgot-password-form">
+            <div id="forgotPasswordError" class="error-message" style="display: none;"></div>
+            <div id="forgotPasswordSuccess" class="success-message" style="display: none;"></div>
+            
+            <h3 style="margin-bottom: 1rem; color: #333;">Reset Your Password</h3>
+            <p style="margin-bottom: 1.5rem; color: #666; font-size: 0.9rem;">
+                Enter your email address and we'll send you a new password.
+            </p>
+            
+            <form id="forgotPasswordFormElement" onsubmit="handleForgotPassword(event)">
+                <div class="form-group">
+                    <label for="resetEmail">Email Address:</label>
+                    <input type="email" id="resetEmail" name="resetEmail" required autocomplete="email">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary" id="resetBtn">
+                        <span id="resetBtnText">Send New Password</span>
+                        <div id="resetLoading" class="loading">
+                            <div class="spinner"></div>
+                            Sending...
+                        </div>
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="showLogin()">
+                        Back to Login
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
-        // Login form submission
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            // Clear any previous error messages
-            document.getElementById('error-message').textContent = '';
-            
-            try {
-                const response = await fetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Check if user is admin and redirect accordingly
-                    if (data.user && data.user.is_admin) {
-                        window.location.href = '/admin';  // Redirect admins to admin dashboard
-                    } else {
-                        window.location.href = '/dashboard';  // Redirect regular users to user dashboard
+        // Check if user is already logged in
+        window.addEventListener('DOMContentLoaded', function() {
+            const token = localStorage.getItem('adminToken');
+            if (token) {
+                // Verify token is still valid
+                fetch('/api/auth/verify', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
                     }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // Token is valid, redirect to dashboard
+                        window.location.href = 'admin_dashboard.html';
+                    } else {
+                        // Token is invalid, remove it
+                        localStorage.removeItem('adminToken');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error verifying token:', error);
+                    localStorage.removeItem('adminToken');
+                });
+            }
+        });
+
+        function showLogin() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('forgotPasswordForm').style.display = 'none';
+            clearMessages();
+        }
+
+        function showForgotPassword() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('forgotPasswordForm').style.display = 'block';
+            clearMessages();
+        }
+
+        function clearMessages() {
+            document.getElementById('loginError').style.display = 'none';
+            document.getElementById('forgotPasswordError').style.display = 'none';
+            document.getElementById('forgotPasswordSuccess').style.display = 'none';
+        }
+
+        function showError(elementId, message) {
+            const errorElement = document.getElementById(elementId);
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+        }
+
+        function showSuccess(elementId, message) {
+            const successElement = document.getElementById(elementId);
+            successElement.textContent = message;
+            successElement.style.display = 'block';
+        }
+
+        function setLoading(buttonId, loadingId, textId, isLoading) {
+            const button = document.getElementById(buttonId);
+            const loading = document.getElementById(loadingId);
+            const text = document.getElementById(textId);
+            
+            if (isLoading) {
+                button.disabled = true;
+                text.style.display = 'none';
+                loading.style.display = 'block';
+            } else {
+                button.disabled = false;
+                text.style.display = 'block';
+                loading.style.display = 'none';
+            }
+        }
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            clearMessages();
+            
+            const formData = new FormData(event.target);
+            const loginData = {
+                username: formData.get('username'),
+                password: formData.get('password')
+            };
+
+            setLoading('loginBtn', 'loginLoading', 'loginBtnText', true);
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(loginData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Store the token
+                    localStorage.setItem('adminToken', data.token);
+                    
+                    // Redirect to admin dashboard
+                    window.location.href = 'admin_dashboard.html';
                 } else {
-                    document.getElementById('error-message').textContent = data.message || 'Invalid username or password';
+                    showError('loginError', data.message || 'Invalid username or password');
                 }
             } catch (error) {
                 console.error('Login error:', error);
-                document.getElementById('error-message').textContent = 'Login failed. Please try again.';
+                showError('loginError', 'Connection error. Please try again.');
+            } finally {
+                setLoading('loginBtn', 'loginLoading', 'loginBtnText', false);
             }
-        });
-
-        // Forgot password form submission
-        document.getElementById('forgotPasswordForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('reset_email').value;
-            
-            // Clear any previous messages
-            document.getElementById('forgot-error-message').textContent = '';
-            document.getElementById('forgot-success-message').textContent = '';
-            
-            try {
-                const response = await fetch('/api/password-reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    document.getElementById('forgot-success-message').textContent = 
-                        'Password reset instructions have been sent to your email address. Please check your inbox and follow the instructions to reset your password.';
-                    document.getElementById('reset_email').value = ''; // Clear the form
-                } else {
-                    document.getElementById('forgot-error-message').textContent = 
-                        data.message || 'Unable to send reset instructions. Please check your email address and try again.';
-                }
-            } catch (error) {
-                console.error('Password reset error:', error);
-                document.getElementById('forgot-error-message').textContent = 
-                    'An error occurred while sending reset instructions. Please try again later.';
-            }
-        });
-
-        // Show forgot password form
-        function showForgotPassword() {
-            document.getElementById('loginContainer').style.display = 'none';
-            document.getElementById('forgotPasswordContainer').style.display = 'block';
-            
-            // Clear any previous messages
-            document.getElementById('forgot-error-message').textContent = '';
-            document.getElementById('forgot-success-message').textContent = '';
-            document.getElementById('reset_email').value = '';
         }
 
-        // Show login form
-        function showLogin() {
-            document.getElementById('loginContainer').style.display = 'block';
-            document.getElementById('forgotPasswordContainer').style.display = 'none';
+        async function handleForgotPassword(event) {
+            event.preventDefault();
+            clearMessages();
             
-            // Clear any previous login error messages
-            document.getElementById('error-message').textContent = '';
+            const formData = new FormData(event.target);
+            const email = formData.get('resetEmail');
+
+            setLoading('resetBtn', 'resetLoading', 'resetBtnText', true);
+
+            try {
+                const response = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showSuccess('forgotPasswordSuccess', 
+                        'A new password has been sent to your email address. Please check your inbox and spam folder.');
+                    
+                    // Clear the form
+                    document.getElementById('forgotPasswordFormElement').reset();
+                    
+                    // Auto redirect to login after 5 seconds
+                    setTimeout(() => {
+                        showLogin();
+                    }, 5000);
+                } else {
+                    showError('forgotPasswordError', data.message || 'Failed to send new password. Please try again.');
+                }
+            } catch (error) {
+                console.error('Forgot password error:', error);
+                showError('forgotPasswordError', 'Connection error. Please try again.');
+            } finally {
+                setLoading('resetBtn', 'resetLoading', 'resetBtnText', false);
+            }
         }
 
         // Clear error messages when user starts typing
-        document.getElementById('username').addEventListener('input', function() {
-            document.getElementById('error-message').textContent = '';
+        document.addEventListener('DOMContentLoaded', function() {
+            const inputs = document.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.addEventListener('input', clearMessages);
+            });
         });
 
-        document.getElementById('password').addEventListener('input', function() {
-            document.getElementById('error-message').textContent = '';
+        // Handle Enter key in forms
+        document.getElementById('loginFormElement').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleLogin(e);
+            }
         });
 
-        document.getElementById('reset_email').addEventListener('input', function() {
-            document.getElementById('forgot-error-message').textContent = '';
-            document.getElementById('forgot-success-message').textContent = '';
+        document.getElementById('forgotPasswordFormElement').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleForgotPassword(e);
+            }
         });
     </script>
 </body>
