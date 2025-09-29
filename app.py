@@ -16,6 +16,7 @@ import jwt
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from sqlalchemy import text
+from io import BytesIO
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -284,6 +285,10 @@ def login_page():
 def admin_dashboard():
     return render_template('admin_dashboard.html')
 
+@app.route('/user_dashboard.html')
+def user_dashboard():
+    return render_template('user_dashboard.html')
+
 # Authentication API Routes
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -480,31 +485,25 @@ def delete_user(current_user, user_id):
         db.session.rollback()
         return jsonify({'message': 'Internal server error'}), 500
 
-@app.route('/api/users/<int:user_id>/permissions', methods=['POST'])
+# User-specific folder access
+@app.route('/api/user/folders', methods=['GET'])
 @token_required
-@admin_required
-def set_user_permissions(current_user, user_id):
+def get_user_folders(current_user):
     try:
-        data = request.get_json()
-        folder_ids = data.get('folderIds', [])
-        permission_level = data.get('permissionLevel', 'view_only')
+        if current_user.role == 'admin':
+            folders = Folder.query.all()
+        else:
+            # Get folders the user has permission to access
+            permissions = UserPermission.query.filter_by(user_id=current_user.id).all()
+            folder_ids = [p.folder_id for p in permissions]
+            folders = Folder.query.filter(Folder.id.in_(folder_ids)).all() if folder_ids else []
         
-        UserPermission.query.filter_by(user_id=user_id).delete()
-        
-        for folder_id in folder_ids:
-            permission = UserPermission(
-                user_id=user_id,
-                folder_id=folder_id,
-                permission_level=permission_level
-            )
-            db.session.add(permission)
-        
-        db.session.commit()
-        return jsonify({'message': 'Permissions updated successfully'}), 200
-        
+        return jsonify({
+            'success': True,
+            'folders': [folder.to_dict() for folder in folders]
+        }), 200
     except Exception as e:
-        logger.error(f"Error setting user permissions: {e}")
-        db.session.rollback()
+        logger.error(f"Error getting user folders: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
 # Folder Management API Routes
@@ -723,8 +722,11 @@ def view_file(current_user, file_id):
         if not file_obj:
             return jsonify({'message': 'File not found'}), 404
         
+        # Read the file content into BytesIO
+        file_data = BytesIO(file_obj.read())
+        
         return send_file(
-            file_obj,
+            file_data,
             as_attachment=False,
             download_name=file.original_filename,
             mimetype='application/pdf'
