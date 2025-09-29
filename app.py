@@ -623,6 +623,24 @@ def rename_folder(current_user, folder_id):
         db.session.rollback()
         return jsonify({'message': 'Internal server error'}), 500
 
+# NEW ENDPOINT: Get files in a folder
+@app.route('/api/folders/<int:folder_id>/files', methods=['GET'])
+@token_required
+def get_folder_files(current_user, folder_id):
+    try:
+        folder = Folder.query.get_or_404(folder_id)
+        files = File.query.filter_by(folder_id=folder_id).all()
+        
+        return jsonify({
+            'success': True,
+            'folder': folder.to_dict(),
+            'files': [file.to_dict() for file in files]
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error getting folder files: {e}")
+        return jsonify({'message': 'Internal server error'}), 500
+
 # File Management API Routes
 @app.route('/api/files', methods=['GET'])
 @token_required
