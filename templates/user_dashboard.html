@@ -5,15 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Dashboard - PDF Management System</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background-color: #f5f5f5; }
         .header {
             background-color: #2c3e50;
             color: white;
@@ -22,49 +15,25 @@
             justify-content: space-between;
             align-items: center;
         }
-        .header h1 {
-            font-size: 1.5rem;
-        }
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .logout-btn, .forgot-password-btn {
+        .header h1 { font-size: 1.5rem; }
+        .user-info { display: flex; align-items: center; gap: 1rem; }
+        .logout-btn {
             background-color: #e74c3c;
             color: white;
             border: none;
             padding: 0.5rem 1rem;
             border-radius: 4px;
             cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
         }
-        .forgot-password-btn {
-            background-color: #f39c12;
-        }
-        .logout-btn:hover {
-            background-color: #c0392b;
-        }
-        .forgot-password-btn:hover {
-            background-color: #e67e22;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
+        .logout-btn:hover { background-color: #c0392b; }
+        .container { max-width: 1200px; margin: 2rem auto; padding: 0 2rem; }
         .folders-section {
             background: white;
             border-radius: 8px;
             padding: 2rem;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        .section-title {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            color: #2c3e50;
-        }
+        .section-title { font-size: 1.25rem; margin-bottom: 1rem; color: #2c3e50; }
         .folder-list {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -81,15 +50,8 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             transform: translateY(-2px);
         }
-        .folder-name {
-            font-weight: bold;
-            margin-bottom: 0.5rem;
-        }
-        .folder-path {
-            color: #666;
-            font-size: 0.9rem;
-            margin-bottom: 0.5rem;
-        }
+        .folder-name { font-weight: bold; margin-bottom: 0.5rem; }
+        .folder-path { color: #666; font-size: 0.9rem; margin-bottom: 0.5rem; }
         .permission-badge {
             display: inline-block;
             padding: 0.2rem 0.5rem;
@@ -137,9 +99,7 @@
             border-radius: 4px;
             cursor: pointer;
         }
-        .file-list {
-            list-style: none;
-        }
+        .file-list { list-style: none; }
         .file-item {
             display: flex;
             justify-content: space-between;
@@ -147,9 +107,7 @@
             padding: 0.75rem;
             border-bottom: 1px solid #eee;
         }
-        .file-item:hover {
-            background-color: #f8f9fa;
-        }
+        .file-item:hover { background-color: #f8f9fa; }
         .view-btn {
             background-color: #3498db;
             color: white;
@@ -160,62 +118,9 @@
             text-decoration: none;
             display: inline-block;
         }
-        .view-btn:hover {
-            background-color: #2980b9;
-        }
-        .loading {
-            text-align: center;
-            padding: 2rem;
-            color: #666;
-        }
-        .no-folders {
-            text-align: center;
-            color: #666;
-            padding: 2rem;
-        }
-        .forgot-password-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            z-index: 1000;
-        }
-        .form-group {
-            margin-bottom: 1rem;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: bold;
-        }
-        .form-group input {
-            width: 100%;
-            padding: 0.5rem;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
-        .btn {
-            padding: 0.5rem 1rem;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-        }
-        .btn-primary {
-            background-color: #3498db;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #2980b9;
-        }
-        .user-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
+        .view-btn:hover { background-color: #2980b9; }
+        .loading { text-align: center; padding: 2rem; color: #666; }
+        .no-folders { text-align: center; color: #666; padding: 2rem; }
         .error-message {
             background-color: #f8d7da;
             color: #721c24;
@@ -224,35 +129,22 @@
             margin-bottom: 1rem;
             border: 1px solid #f5c6cb;
         }
-        .success-message {
-            background-color: #d1ecf1;
-            color: #0c5460;
-            padding: 1rem;
-            border-radius: 4px;
-            margin-bottom: 1rem;
-            border: 1px solid #bee5eb;
-        }
     </style>
 </head>
 <body>
-    <!-- Authentication Check -->
     <script>
-        // Check if user is logged in
         const checkAuth = () => {
             const token = localStorage.getItem('userToken');
             const username = localStorage.getItem('username');
             
             if (!token || !username) {
-                // Redirect to login page if not authenticated
                 window.location.href = '/login.html';
                 return false;
             }
             return true;
         };
 
-        // Run auth check immediately
         if (!checkAuth()) {
-            // Stop loading the page if not authenticated
             document.body.style.display = 'none';
         }
     </script>
@@ -261,10 +153,7 @@
         <h1>PDF Management System - User Dashboard</h1>
         <div class="user-info">
             <span>Welcome, <span id="username-display">User</span></span>
-            <div class="user-actions">
-                <button class="forgot-password-btn" onclick="openForgotPasswordModal()">Reset Password</button>
-                <button class="logout-btn" onclick="logout()">Logout</button>
-            </div>
+            <button class="logout-btn" onclick="logout()">Logout</button>
         </div>
     </div>
 
@@ -277,12 +166,11 @@
         </div>
     </div>
 
-    <!-- Files Modal -->
     <div id="files-modal" class="files-modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modal-folder-name">Folder Files</h3>
-                <button class="close-modal" onclick="closeModal('files-modal')">Close</button>
+                <button class="close-modal" onclick="closeModal()">Close</button>
             </div>
             <div id="files-container">
                 <div class="loading">Loading files...</div>
@@ -290,39 +178,12 @@
         </div>
     </div>
 
-    <!-- Forgot Password Modal -->
-    <div id="forgot-password-modal" class="forgot-password-modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Reset Password</h3>
-                <button class="close-modal" onclick="closeModal('forgot-password-modal')">&times;</button>
-            </div>
-            <form id="forgot-password-form">
-                <div class="form-group">
-                    <label for="reset-email">Enter your email address:</label>
-                    <input type="email" id="reset-email" name="email" required placeholder="your-email@example.com">
-                    <small style="color: #666; display: block; margin-top: 0.5rem;">
-                        A new password will be sent to your email address.
-                    </small>
-                </div>
-                <button type="submit" class="btn btn-primary">Send New Password</button>
-            </form>
-        </div>
-    </div>
-
     <script>
         let currentFolderId = null;
-        let currentUser = null;
 
-        // Load user data and folders on page load
         document.addEventListener('DOMContentLoaded', function() {
-            // Check authentication first
             if (!checkAuth()) return;
-            
-            // Load user info
             loadUserInfo();
-            
-            // Load folders
             loadFolders();
         });
 
@@ -345,7 +206,6 @@
                 
                 if (!response.ok) {
                     if (response.status === 401) {
-                        // Token expired or invalid
                         logout();
                         return;
                     }
@@ -359,9 +219,9 @@
                     container.innerHTML = `
                         <div class="folder-list">
                             ${data.folders.map(folder => `
-                                <div class="folder-card" onclick="openFolder(${folder.id}, '${folder.name}')">
-                                    <div class="folder-name">${folder.name}</div>
-                                    <div class="folder-path">${folder.path || '/'}</div>
+                                <div class="folder-card" onclick="openFolder(${folder.id}, '${escapeHtml(folder.name)}')">
+                                    <div class="folder-name">${escapeHtml(folder.name)}</div>
+                                    <div class="folder-path">${escapeHtml(folder.path || '/')}</div>
                                     <span class="permission-badge">${folder.permissionLevel || 'View Only'}</span>
                                 </div>
                             `).join('')}
@@ -408,9 +268,9 @@
                             ${data.files.map(file => `
                                 <li class="file-item">
                                     <div>
-                                        <strong>${file.name || file.original_name}</strong>
+                                        <strong>${escapeHtml(file.name)}</strong>
                                         <br>
-                                        <small>Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.upload_date || file.created_at)}</small>
+                                        <small>Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.uploaded_at)}</small>
                                     </div>
                                     <a href="/api/files/${file.id}/view" class="view-btn" target="_blank">View PDF</a>
                                 </li>
@@ -426,71 +286,31 @@
             }
         }
 
-        function openForgotPasswordModal() {
-            document.getElementById('forgot-password-modal').style.display = 'block';
+        function closeModal() {
+            document.getElementById('files-modal').style.display = 'none';
         }
 
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-
-        // Handle forgot password form submission
-        document.getElementById('forgot-password-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const email = formData.get('email');
-            
-            if (!email) {
-                showError('Please enter your email address');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/password-reset', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok && result.success) {
-                    showSuccess('Password reset instructions have been sent to your email. Please check your inbox and spam folder.');
-                    closeModal('forgot-password-modal');
-                    document.getElementById('forgot-password-form').reset();
-                } else {
-                    showError(result.message || 'Error processing password reset request');
-                }
-            } catch (error) {
-                console.error('Forgot password error:', error);
-                showError('Error processing password reset request. Please try again.');
-            }
-        });
-
-        // Close modal when clicking outside
         window.addEventListener('click', function(event) {
             const modal = document.getElementById('files-modal');
-            const forgotModal = document.getElementById('forgot-password-modal');
             if (event.target === modal) {
-                closeModal('files-modal');
-            }
-            if (event.target === forgotModal) {
-                closeModal('forgot-password-modal');
+                closeModal();
             }
         });
 
         function logout() {
-            // Clear user data
             localStorage.removeItem('userToken');
             localStorage.removeItem('username');
             localStorage.removeItem('userRole');
-            
-            // Redirect to login
             window.location.href = '/login.html';
         }
 
-        // Utility functions
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         function formatFileSize(bytes) {
             if (!bytes) return 'Unknown';
             const k = 1024;
@@ -506,32 +326,6 @@
             } catch (e) {
                 return 'Unknown';
             }
-        }
-
-        function showError(message) {
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.textContent = message;
-            
-            const container = document.querySelector('.container');
-            container.insertBefore(errorDiv, container.firstChild);
-            
-            setTimeout(() => {
-                errorDiv.remove();
-            }, 5000);
-        }
-
-        function showSuccess(message) {
-            const successDiv = document.createElement('div');
-            successDiv.className = 'success-message';
-            successDiv.textContent = message;
-            
-            const container = document.querySelector('.container');
-            container.insertBefore(successDiv, container.firstChild);
-            
-            setTimeout(() => {
-                successDiv.remove();
-            }, 5000);
         }
     </script>
 </body>
