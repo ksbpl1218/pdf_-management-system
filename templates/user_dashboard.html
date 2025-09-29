@@ -272,7 +272,7 @@
                                         <br>
                                         <small>Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.uploaded_at)}</small>
                                     </div>
-                                    <a href="/api/files/${file.id}/view?token=${encapeURIComponent(localStorage.getItem('userToken'))}" class="view-btn" target="_blank">View PDF</a>
+                                    <a href="/api/files/${file.id}/view?token=${encodeURIComponent(localStorage.getItem('userToken'))}" class="view-btn" target="_blank">View PDF</a>
                                 </li>
                             `).join('')}
                         </ul>
