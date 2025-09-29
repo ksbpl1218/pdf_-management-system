@@ -150,64 +150,543 @@
     </div>
 
     <script>
-        let selectedUsers=new Set(),selectedFolders=new Set(),selectedFiles=new Set(),folders=[],users=[],files=[];
-        const h=()=>({'Authorization':`Bearer ${localStorage.getItem('adminToken')}`,'Content-Type':'application/json'});
-        const esc=t=>{const d=document.createElement('div');d.textContent=t;return d.innerHTML;};
+    let selectedUsers = new Set(), selectedFolders = new Set(), selectedFiles = new Set();
+    let currentUser = null, folders = [], users = [], files = [];
+    
+    // FIXED: Consistent token retrieval
+    const getToken = () => localStorage.getItem('adminToken');
+    const getHeaders = () => ({
+        'Authorization': `Bearer ${getToken()}`,
+        'Content-Type': 'application/json'
+    });
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function logout() {
+        localStorage.removeItem('adminToken');
+        window.location.href = '/login.html';
+    }
+
+    function showTab(name) {
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(name).classList.add('active');
+        event.target.classList.add('active');
+        if (name === 'users') loadUsers();
+        else if (name === 'folders') loadFolders();
+        else if (name === 'files') loadFiles();
+    }
+
+    function showModal(id) { document.getElementById(id).style.display = 'block'; }
+    
+    function hideModal(id) {
+        document.getElementById(id).style.display = 'none';
+        if (id === 'userModal') {
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+        }
+    }
+
+    async function loadUsers() {
+        try {
+            const response = await fetch('/api/users', {
+                headers: getHeaders()
+            });
+            if (!response.ok) throw new Error('Failed to load users');
+            users = await response.json();
+            renderUsers();
+        } catch (error) {
+            console.error('Error loading users:', error);
+            showError('Failed to load users');
+        }
+    }
+
+    function renderUsers() {
+        const tbody = document.getElementById('userTableBody');
+        tbody.innerHTML = users.map(u => `
+            <tr>
+                <td><input type="checkbox" value="${u.id}" onchange="toggleUserSelection(${u.id})"></td>
+                <td>${escapeHtml(u.username)}</td>
+                <td>${escapeHtml(u.email)}</td>
+                <td>${u.role === 'admin' ? 'Admin' : 'View Only'}</td>
+                <td><span class="status ${u.isActive ? 'active' : 'inactive'}">${u.isActive ? 'Active' : 'Inactive'}</span></td>
+                <td>
+                    <button class="btn btn-primary" onclick="editUser(${u.id})">Edit</button>
+                    <button class="btn btn-danger" onclick="deleteUser(${u.id})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function toggleUserSelection(id) {
+        selectedUsers.has(id) ? selectedUsers.delete(id) : selectedUsers.add(id);
+        const info = document.getElementById('userSelectionInfo');
+        info.style.display = selectedUsers.size > 0 ? 'block' : 'none';
+        document.getElementById('userSelectionCount').textContent = selectedUsers.size;
+    }
+
+    function toggleSelectAllUsers() {
+        const checked = document.getElementById('selectAllUsers').checked;
+        selectedUsers.clear();
+        document.querySelectorAll('#userTableBody input[type="checkbox"]').forEach(cb => {
+            cb.checked = checked;
+            if (checked) selectedUsers.add(parseInt(cb.value));
+        });
+        toggleUserSelection(0);
+    }
+
+    async function deleteSelectedUsers() {
+        if (selectedUsers.size === 0) return alert('Select users first');
+        if (!confirm(`Delete ${selectedUsers.size} user(s)?`)) return;
+        let count = 0;
+        for (const id of selectedUsers) {
+            try {
+                const response = await fetch(`/api/users/${id}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                if (response.ok) count++;
+            } catch (error) {
+                console.error('Error deleting user:', error);
+            }
+        }
+        showSuccess(`Deleted ${count} user(s)`);
+        selectedUsers.clear();
+        loadUsers();
+    }
+
+    function editUser(id) {
+        const u = users.find(u => u.id === id);
+        if (!u) return;
+        document.getElementById('userId').value = u.id;
+        document.getElementById('username').value = u.username;
+        document.getElementById('email').value = u.email;
+        document.getElementById('role').value = u.role;
+        document.getElementById('isActive').checked = u.isActive;
+        document.getElementById('password').required = false;
+        showModal('userModal');
+    }
+
+    async function deleteUser(id) {
+        if (!confirm('Delete user?')) return;
+        try {
+            const response = await fetch(`/api/users/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            if (response.ok) {
+                showSuccess('Deleted');
+                loadUsers();
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    }
+
+    async function loadFolders() {
+        try {
+            console.log('Loading folders with token:', getToken());
+            const response = await fetch('/api/folders', {
+                headers: getHeaders()
+            });
+            console.log('Response status:', response.status);
+            if (!response.ok) throw new Error('Failed to load folders');
+            folders = await response.json();
+            console.log('Loaded folders:', folders);
+            renderFolders();
+        } catch (error) {
+            console.error('Error loading folders:', error);
+            showError('Failed to load folders');
+        }
+    }
+
+    function renderFolders() {
+        const tbody = document.getElementById('folderTableBody');
+        tbody.innerHTML = '';
+        folders.forEach(f => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><input type="checkbox" value="${f.id}" onchange="toggleFolderSelection(${f.id})"></td>
+                <td>${escapeHtml(f.name)}</td>
+                <td>${escapeHtml(f.path || '/')}</td>
+                <td>${f.permissionLevel === 'admin' ? 'Admin' : 'View Only'}</td>
+                <td>
+                    <button class="btn btn-primary" data-id="${f.id}" data-action="view">View Files</button>
+                    <button class="btn btn-warning" data-id="${f.id}" data-action="rename">Rename</button>
+                    <button class="btn btn-danger" data-id="${f.id}" data-action="delete">Delete</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            row.querySelectorAll('button').forEach(btn => {
+                btn.onclick = () => {
+                    const id = parseInt(btn.dataset.id);
+                    const folder = folders.find(f => f.id === id);
+                    if (btn.dataset.action === 'view') viewEditFiles(id, folder.name);
+                    else if (btn.dataset.action === 'rename') renameFolder(id, folder.name);
+                    else deleteFolder(id);
+                };
+            });
+        });
+    }
+
+    function toggleFolderSelection(id) {
+        selectedFolders.has(id) ? selectedFolders.delete(id) : selectedFolders.add(id);
+        const info = document.getElementById('folderSelectionInfo');
+        info.style.display = selectedFolders.size > 0 ? 'block' : 'none';
+        document.getElementById('folderSelectionCount').textContent = selectedFolders.size;
+    }
+
+    function toggleSelectAllFolders() {
+        const checked = document.getElementById('selectAllFolders').checked;
+        selectedFolders.clear();
+        document.querySelectorAll('#folderTableBody input[type="checkbox"]').forEach(cb => {
+            cb.checked = checked;
+            if (checked) selectedFolders.add(parseInt(cb.value));
+        });
+        toggleFolderSelection(0);
+    }
+
+    async function deleteSelectedFolders() {
+        if (selectedFolders.size === 0) return alert('Select folders');
+        if (!confirm(`Delete ${selectedFolders.size} folder(s)?`)) return;
+        let count = 0;
+        for (const id of selectedFolders) {
+            try {
+                const response = await fetch(`/api/folders/${id}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                if (response.ok) count++;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        showSuccess(`Deleted ${count} folder(s)`);
+        selectedFolders.clear();
+        loadFolders();
+    }
+
+    async function deleteFolder(id) {
+        if (!confirm('Delete folder?')) return;
+        try {
+            const response = await fetch(`/api/folders/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            if (response.ok) {
+                showSuccess('Deleted');
+                loadFolders();
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    }
+
+    function renameFolder(id, name) {
+        document.getElementById('renameFolderId').value = id;
+        document.getElementById('newFolderName').value = name;
+        showModal('renameFolderModal');
+    }
+
+    async function viewEditFiles(folderId, folderName) {
+        console.log('viewEditFiles called:', folderId, folderName);
+        console.log('Token:', getToken());
         
-        function logout(){localStorage.removeItem('adminToken');window.location.href='/login.html';}
-        function showTab(n){document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.getElementById(n).classList.add('active');event.target.classList.add('active');if(n==='users')loadUsers();else if(n==='folders')loadFolders();else if(n==='files')loadFiles();}
-        function showModal(id){document.getElementById(id).style.display='block';}
-        function hideModal(id){document.getElementById(id).style.display='none';if(id==='userModal'){document.getElementById('userForm').reset();document.getElementById('userId').value='';}}
+        document.getElementById('filesModalTitle').textContent = `Files: ${folderName}`;
+        showModal('filesModal');
+        const content = document.getElementById('filesContent');
+        content.innerHTML = '<div class="loading">Loading...</div>';
         
-        async function loadUsers(){try{const r=await fetch('/api/users',{headers:h()});if(!r.ok)throw new Error();users=await r.json();document.getElementById('userTableBody').innerHTML=users.map(u=>`<tr><td><input type="checkbox" value="${u.id}" onchange="toggleUserSelection(${u.id})"></td><td>${esc(u.username)}</td><td>${esc(u.email)}</td><td>${u.role==='admin'?'Admin':'View Only'}</td><td><span class="status ${u.isActive?'active':'inactive'}">${u.isActive?'Active':'Inactive'}</span></td><td><button class="btn btn-primary" onclick="editUser(${u.id})">Edit</button> <button class="btn btn-danger" onclick="deleteUser(${u.id})">Delete</button></td></tr>`).join('');}catch{showError('Failed to load users');}}
+        try {
+            const response = await fetch(`/api/folders/${folderId}/files`, {
+                headers: getHeaders()
+            });
+            
+            console.log('Response status:', response.status);
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Error response:', errorData);
+                throw new Error(errorData.message || 'Failed to load files');
+            }
+            
+            const data = await response.json();
+            console.log('Files data:', data);
+            
+            if (data.files && data.files.length > 0) {
+                content.innerHTML = `
+                    <table class="table">
+                        <thead>
+                            <tr><th>File</th><th>Size</th><th>Date</th><th>Actions</th></tr>
+                        </thead>
+                        <tbody>
+                            ${data.files.map(f => `
+                                <tr>
+                                    <td>${escapeHtml(f.name)}</td>
+                                    <td>${formatFileSize(f.size)}</td>
+                                    <td>${formatDate(f.uploaded_at)}</td>
+                                    <td>
+                                        <button class="btn btn-primary" onclick="viewFile(${f.id})">View</button>
+                                        <button class="btn btn-danger" onclick="deleteFileFromModal(${f.id}, ${folderId}, '${escapeHtml(folderName).replace(/'/g, "\\'")}')">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } else {
+                content.innerHTML = '<div class="loading">No files</div>';
+            }
+        } catch (error) {
+            console.error('Error loading files:', error);
+            content.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+        }
+    }
+
+    async function deleteFileFromModal(fileId, folderId, folderName) {
+        if (!confirm('Delete file?')) return;
+        try {
+            const response = await fetch(`/api/files/${fileId}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            if (response.ok) {
+                showSuccess('Deleted');
+                viewEditFiles(folderId, folderName);
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    }
+
+    async function loadFiles() {
+        try {
+            const response = await fetch('/api/files', {
+                headers: getHeaders()
+            });
+            if (!response.ok) throw new Error('Failed');
+            files = await response.json();
+            renderFiles();
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed to load files');
+        }
+    }
+
+    function renderFiles() {
+        const tbody = document.getElementById('fileTableBody');
+        tbody.innerHTML = files.map(f => `
+            <tr>
+                <td><input type="checkbox" value="${f.id}" onchange="toggleFileSelection(${f.id})"></td>
+                <td>${escapeHtml(f.name)}</td>
+                <td>${escapeHtml(f.folderName || 'N/A')}</td>
+                <td>${formatFileSize(f.size)}</td>
+                <td>
+                    <button class="btn btn-primary" onclick="viewFile(${f.id})">View</button>
+                    <button class="btn btn-danger" onclick="deleteFile(${f.id})">Delete</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function toggleFileSelection(id) {
+        selectedFiles.has(id) ? selectedFiles.delete(id) : selectedFiles.add(id);
+        const info = document.getElementById('fileSelectionInfo');
+        info.style.display = selectedFiles.size > 0 ? 'block' : 'none';
+        document.getElementById('fileSelectionCount').textContent = selectedFiles.size;
+    }
+
+    function toggleSelectAllFiles() {
+        const checked = document.getElementById('selectAllFiles').checked;
+        selectedFiles.clear();
+        document.querySelectorAll('#fileTableBody input[type="checkbox"]').forEach(cb => {
+            cb.checked = checked;
+            if (checked) selectedFiles.add(parseInt(cb.value));
+        });
+        toggleFileSelection(0);
+    }
+
+    async function deleteSelectedFiles() {
+        if (selectedFiles.size === 0) return alert('Select files');
+        if (!confirm(`Delete ${selectedFiles.size} file(s)?`)) return;
+        let count = 0;
+        for (const id of selectedFiles) {
+            try {
+                const response = await fetch(`/api/files/${id}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                if (response.ok) count++;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        showSuccess(`Deleted ${count} file(s)`);
+        selectedFiles.clear();
+        loadFiles();
+    }
+
+    async function deleteFile(id) {
+        if (!confirm('Delete file?')) return;
+        try {
+            const response = await fetch(`/api/files/${id}`, {
+                method: 'DELETE',
+                headers: getHeaders()
+            });
+            if (response.ok) {
+                showSuccess('Deleted');
+                loadFiles();
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    }
+
+    function viewFile(id) {
+        window.open(`/api/files/${id}/view`, '_blank');
+    }
+
+    // Form submissions
+    document.getElementById('userForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            username: document.getElementById('username').value,
+            email: document.getElementById('email').value,
+            role: document.getElementById('role').value,
+            isActive: document.getElementById('isActive').checked
+        };
+        const password = document.getElementById('password').value;
+        if (password) data.password = password;
+        const id = document.getElementById('userId').value;
         
-        function toggleUserSelection(id){selectedUsers.has(id)?selectedUsers.delete(id):selectedUsers.add(id);const i=document.getElementById('userSelectionInfo');i.style.display=selectedUsers.size>0?'block':'none';document.getElementById('userSelectionCount').textContent=selectedUsers.size;}
-        function toggleSelectAllUsers(){const c=document.getElementById('selectAllUsers').checked;selectedUsers.clear();document.querySelectorAll('#userTableBody input[type="checkbox"]').forEach(cb=>{cb.checked=c;if(c)selectedUsers.add(parseInt(cb.value));});toggleUserSelection(0);}
+        try {
+            const response = await fetch(`/api/users${id ? '/' + id : ''}`, {
+                method: id ? 'PUT' : 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(data)
+            });
+            if (response.ok) {
+                showSuccess('Saved');
+                hideModal('userModal');
+                loadUsers();
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    };
+
+    document.getElementById('folderForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('folderName').value,
+            path: document.getElementById('folderPath').value || '/',
+            permissionLevel: document.getElementById('permissionLevel').value
+        };
+        const id = document.getElementById('folderId').value;
         
-        async function deleteSelectedUsers(){if(selectedUsers.size===0)return alert('Select users first');if(!confirm(`Delete ${selectedUsers.size} user(s)?`))return;let cnt=0;for(const id of selectedUsers){try{const r=await fetch(`/api/users/${id}`,{method:'DELETE',headers:h()});if(r.ok)cnt++;}catch{}}showSuccess(`Deleted ${cnt}`);selectedUsers.clear();loadUsers();}
+        try {
+            const response = await fetch(`/api/folders${id ? '/' + id : ''}`, {
+                method: id ? 'PUT' : 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(data)
+            });
+            if (response.ok) {
+                showSuccess('Saved');
+                hideModal('folderModal');
+                loadFolders();
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    };
+
+    document.getElementById('renameFolderForm').onsubmit = async (e) => {
+        e.preventDefault();
+        const id = document.getElementById('renameFolderId').value;
+        const name = document.getElementById('newFolderName').value;
         
-        function editUser(id){const u=users.find(u=>u.id===id);if(!u)return;document.getElementById('userId').value=u.id;document.getElementById('username').value=u.username;document.getElementById('email').value=u.email;document.getElementById('role').value=u.role;document.getElementById('isActive').checked=u.isActive;document.getElementById('password').required=false;showModal('userModal');}
-        
-        async function deleteUser(id){if(!confirm('Delete?'))return;try{const r=await fetch(`/api/users/${id}`,{method:'DELETE',headers:h()});if(r.ok){showSuccess('Deleted');loadUsers();}else showError('Failed');}catch{showError('Failed');}}
-        
-        async function loadFolders(){try{const r=await fetch('/api/folders',{headers:h()});if(!r.ok)throw new Error();folders=await r.json();const tb=document.getElementById('folderTableBody');tb.innerHTML='';folders.forEach(f=>{const row=document.createElement('tr');row.innerHTML=`<td><input type="checkbox" value="${f.id}" onchange="toggleFolderSelection(${f.id})"></td><td>${esc(f.name)}</td><td>${esc(f.path||'/')}</td><td>${f.permissionLevel==='admin'?'Admin':'View Only'}</td><td><button class="btn btn-primary" data-id="${f.id}" data-action="view">View Files</button> <button class="btn btn-warning" data-id="${f.id}" data-action="rename">Rename</button> <button class="btn btn-danger" data-id="${f.id}" data-action="delete">Delete</button></td>`;tb.appendChild(row);row.querySelectorAll('button').forEach(btn=>{btn.onclick=()=>{const id=parseInt(btn.dataset.id);const folder=folders.find(f=>f.id===id);if(btn.dataset.action==='view')viewEditFiles(id,folder.name);else if(btn.dataset.action==='rename')renameFolder(id,folder.name);else deleteFolder(id);};});});}catch{showError('Failed to load folders');}}
-        
-        function toggleFolderSelection(id){selectedFolders.has(id)?selectedFolders.delete(id):selectedFolders.add(id);const i=document.getElementById('folderSelectionInfo');i.style.display=selectedFolders.size>0?'block':'none';document.getElementById('folderSelectionCount').textContent=selectedFolders.size;}
-        function toggleSelectAllFolders(){const c=document.getElementById('selectAllFolders').checked;selectedFolders.clear();document.querySelectorAll('#folderTableBody input[type="checkbox"]').forEach(cb=>{cb.checked=c;if(c)selectedFolders.add(parseInt(cb.value));});toggleFolderSelection(0);}
-        
-        async function deleteSelectedFolders(){if(selectedFolders.size===0)return alert('Select folders');if(!confirm(`Delete ${selectedFolders.size} folder(s)?`))return;let cnt=0;for(const id of selectedFolders){try{const r=await fetch(`/api/folders/${id}`,{method:'DELETE',headers:h()});if(r.ok)cnt++;}catch{}}showSuccess(`Deleted ${cnt}`);selectedFolders.clear();loadFolders();}
-        
-        async function deleteFolder(id){if(!confirm('Delete?'))return;try{const r=await fetch(`/api/folders/${id}`,{method:'DELETE',headers:h()});if(r.ok){showSuccess('Deleted');loadFolders();}else showError('Failed');}catch{showError('Failed');}}
-        
-        function renameFolder(id,name){document.getElementById('renameFolderId').value=id;document.getElementById('newFolderName').value=name;showModal('renameFolderModal');}
-        
-        async function viewEditFiles(folderId,folderName){document.getElementById('filesModalTitle').textContent=`Files: ${folderName}`;showModal('filesModal');const c=document.getElementById('filesContent');c.innerHTML='<div class="loading">Loading...</div>';try{const r=await fetch(`/api/folders/${folderId}/files`,{headers:h()});if(!r.ok)throw new Error();const d=await r.json();if(d.files&&d.files.length>0){c.innerHTML=`<table class="table"><thead><tr><th>File</th><th>Size</th><th>Date</th><th>Actions</th></tr></thead><tbody>${d.files.map(f=>`<tr><td>${esc(f.name)}</td><td>${formatFileSize(f.size)}</td><td>${formatDate(f.uploaded_at)}</td><td><button class="btn btn-primary" onclick="viewFile(${f.id})">View</button> <button class="btn btn-danger" onclick="deleteFileFromModal(${f.id},${folderId},'${esc(folderName).replace(/'/g,"\\'")}')">Delete</button></td></tr>`).join('')}</tbody></table>`;}else{c.innerHTML='<div class="loading">No files</div>';}}catch{c.innerHTML='<div class="error-message">Error</div>';}}
-        
-        async function deleteFileFromModal(fileId,folderId,folderName){if(!confirm('Delete?'))return;try{const r=await fetch(`/api/files/${fileId}`,{method:'DELETE',headers:h()});if(r.ok){showSuccess('Deleted');viewEditFiles(folderId,folderName);}else showError('Failed');}catch{showError('Failed');}}
-        
-        async function loadFiles(){try{const r=await fetch('/api/files',{headers:h()});if(!r.ok)throw new Error();files=await r.json();document.getElementById('fileTableBody').innerHTML=files.map(f=>`<tr><td><input type="checkbox" value="${f.id}" onchange="toggleFileSelection(${f.id})"></td><td>${esc(f.name)}</td><td>${esc(f.folderName||'N/A')}</td><td>${formatFileSize(f.size)}</td><td><button class="btn btn-primary" onclick="viewFile(${f.id})">View</button> <button class="btn btn-danger" onclick="deleteFile(${f.id})">Delete</button></td></tr>`).join('');}catch{showError('Failed');}}
-        
-        function toggleFileSelection(id){selectedFiles.has(id)?selectedFiles.delete(id):selectedFiles.add(id);const i=document.getElementById('fileSelectionInfo');i.style.display=selectedFiles.size>0?'block':'none';document.getElementById('fileSelectionCount').textContent=selectedFiles.size;}
-        function toggleSelectAllFiles(){const c=document.getElementById('selectAllFiles').checked;selectedFiles.clear();document.querySelectorAll('#fileTableBody input[type="checkbox"]').forEach(cb=>{cb.checked=c;if(c)selectedFiles.add(parseInt(cb.value));});toggleFileSelection(0);}
-        
-        async function deleteSelectedFiles(){if(selectedFiles.size===0)return alert('Select files');if(!confirm(`Delete ${selectedFiles.size}?`))return;let cnt=0;for(const id of selectedFiles){try{const r=await fetch(`/api/files/${id}`,{method:'DELETE',headers:h()});if(r.ok)cnt++;}catch{}}showSuccess(`Deleted ${cnt}`);selectedFiles.clear();loadFiles();}
-        
-        async function deleteFile(id){if(!confirm('Delete?'))return;try{const r=await fetch(`/api/files/${id}`,{method:'DELETE',headers:h()});if(r.ok){showSuccess('Deleted');loadFiles();}else showError('Failed');}catch{showError('Failed');}}
-        
-        function viewFile(id){window.open(`/api/files/${id}/view`,'_blank');}
-        
-        document.getElementById('userForm').onsubmit=async(e)=>{e.preventDefault();const d={username:document.getElementById('username').value,email:document.getElementById('email').value,role:document.getElementById('role').value,isActive:document.getElementById('isActive').checked};const p=document.getElementById('password').value;if(p)d.password=p;const id=document.getElementById('userId').value;try{const r=await fetch(`/api/users${id?'/'+id:''}`,{method:id?'PUT':'POST',headers:h(),body:JSON.stringify(d)});if(r.ok){showSuccess('Saved');hideModal('userModal');loadUsers();}else showError('Failed');}catch{showError('Failed');}};
-        
-        document.getElementById('folderForm').onsubmit=async(e)=>{e.preventDefault();const d={name:document.getElementById('folderName').value,path:document.getElementById('folderPath').value||'/',permissionLevel:document.getElementById('permissionLevel').value};const id=document.getElementById('folderId').value;try{const r=await fetch(`/api/folders${id?'/'+id:''}`,{method:id?'PUT':'POST',headers:h(),body:JSON.stringify(d)});if(r.ok){showSuccess('Saved');hideModal('folderModal');loadFolders();}else showError('Failed');}catch{showError('Failed');}};
-        
-        document.getElementById('renameFolderForm').onsubmit=async(e)=>{e.preventDefault();const id=document.getElementById('renameFolderId').value;const name=document.getElementById('newFolderName').value;try{const r=await fetch(`/api/folders/${id}/rename`,{method:'PUT',headers:h(),body:JSON.stringify({name})});if(r.ok){showSuccess('Renamed');hideModal('renameFolderModal');loadFolders();}else showError('Failed');}catch{showError('Failed');}};
-        
-        function formatFileSize(b){if(!b)return '0 B';const k=1024,s=['B','KB','MB','GB'],i=Math.floor(Math.log(b)/Math.log(k));return(b/Math.pow(k,i)).toFixed(2)+' '+s[i];}
-        function formatDate(d){if(!d)return 'N/A';try{return new Date(d).toLocaleDateString();}catch{return 'N/A';}}
-        function showError(m){const d=document.createElement('div');d.className='error-message';d.textContent=m;document.querySelector('.container').insertBefore(d,document.querySelector('.container').firstChild);setTimeout(()=>d.remove(),5000);}
-        function showSuccess(m){const d=document.createElement('div');d.className='success-message';d.textContent=m;document.querySelector('.container').insertBefore(d,document.querySelector('.container').firstChild);setTimeout(()=>d.remove(),5000);}
-        
-        document.addEventListener('DOMContentLoaded',()=>{loadUsers();window.addEventListener('click',e=>{if(e.target.classList.contains('modal')||e.target.classList.contains('files-modal'))e.target.style.display='none';});});
-    </script>
-</body>
-</html>
+        try {
+            const response = await fetch(`/api/folders/${id}/rename`, {
+                method: 'PUT',
+                headers: getHeaders(),
+                body: JSON.stringify({ name })
+            });
+            if (response.ok) {
+                showSuccess('Renamed');
+                hideModal('renameFolderModal');
+                loadFolders();
+            } else {
+                showError('Failed');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            showError('Failed');
+        }
+    };
+
+    // Utility functions
+    function formatFileSize(bytes) {
+        if (!bytes) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
+    function formatDate(dateString) {
+        if (!dateString) return 'N/A';
+        try {
+            return new Date(dateString).toLocaleDateString();
+        } catch (e) {
+            return 'N/A';
+        }
+    }
+
+    function showError(message) {
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.textContent = message;
+        document.querySelector('.container').insertBefore(errorDiv, document.querySelector('.container').firstChild);
+        setTimeout(() => errorDiv.remove(), 5000);
+    }
+
+    function showSuccess(message) {
+        const successDiv = document.createElement('div');
+        successDiv.className = 'success-message';
+        successDiv.textContent = message;
+        document.querySelector('.container').insertBefore(successDiv, document.querySelector('.container').firstChild);
+        setTimeout(() => successDiv.remove(), 5000);
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        loadUsers();
+        window.addEventListener('click', e => {
+            if (e.target.classList.contains('modal') || e.target.classList.contains('files-modal')) {
+                e.target.style.display = 'none';
+            }
+        });
+    });
+</script>
