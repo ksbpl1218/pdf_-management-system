@@ -111,6 +111,9 @@
 
         <div id="folders" class="tab-content">
             <h2 style="margin-bottom: 1.5rem; color: #2c3e50;">Folder Management</h2>
+            <div style="background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; color: #1976d2;">
+                <strong>💡 Tip:</strong> Drag and drop entire folders anywhere on this page to automatically create folders and upload all PDFs (including from subfolders)
+            </div>
             <div class="actions">
                 <button class="btn btn-primary" onclick="showAddFolderModal()">Create Folder</button>
                 <button class="btn btn-danger" onclick="deleteSelectedFolders()">Delete Selected</button>
@@ -259,8 +262,14 @@
             </div>
             <input type="hidden" id="uploadFolderId">
             <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
-                <p style="font-size: 1.1rem; color: #7f8c8d; margin-bottom: 1rem;">Drag and drop PDF files here or click to browse</p>
-                <input type="file" id="fileInput" multiple accept=".pdf" style="display: none;" onchange="handleFileSelect(event)">
+                <p style="font-size: 1.1rem; color: #7f8c8d; margin-bottom: 1rem;">Drag and drop folders or PDF files here</p>
+                <p style="font-size: 0.9rem; color: #95a5a6; margin-bottom: 1rem;">Drop entire folders - PDFs in subfolders will be automatically detected</p>
+                <input type="file" id="fileInput" multiple webkitdirectory directory style="display: none;" onchange="handleFileSelect(event)">
+                <div style="margin-top: 1rem;">
+                    <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click(); event.stopPropagation();">Browse Folder</button>
+                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInputSingle').click(); event.stopPropagation();" style="background: #95a5a6; color: white;">Browse Files</button>
+                </div>
+                <input type="file" id="fileInputSingle" multiple accept=".pdf" style="display: none;" onchange="handleFileSelect(event)">
             </div>
             <div id="selectedFilesList" class="file-list"></div>
             <div class="actions">
@@ -574,7 +583,7 @@
                     <td>${f.file_count || 0}</td>
                     <td class="action-buttons">
                         <button class="btn btn-primary btn-sm" onclick="showUploadModal(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Upload</button>
-                        <button class="btn btn-success btn-sm" onclick="viewFolderFiles(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">View</button>
+                        <button class="btn btn-success btn-sm" onclick="viewFolderFiles(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">View Files</button>
                         <button class="btn btn-warning btn-sm" onclick="showRenameModal(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Rename</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteFolder(${f.id})">Delete</button>
                     </td>
@@ -746,13 +755,109 @@
 
         function handleFileSelect(event) {
             const files = Array.from(event.target.files);
-            addFilesToUpload(files);
+            processFolderFiles(files);
+        }
+
+        function processFolderFiles(files) {
+            // Extract folder name from the first file's path
+            let folderName = null;
+            if (files.length > 0 && files[0].webkitRelativePath) {
+                const pathParts = files[0].webkitRelativePath.split('/');
+                if (pathParts.length > 0) {
+                    folderName = pathParts[0];
+                }
+            }
+
+            // Filter PDF files from all folders and subfolders
+            const pdfFiles = files.filter(file => {
+                const fileName = file.name.toLowerCase();
+                return fileName.endsWith('.pdf');
+            });
+
+            if (pdfFiles.length === 0) {
+                showError('No PDF files found in the selected folder(s)');
+                return;
+            }
+
+            // If a folder was detected and we're not in upload modal, create folder and upload
+            if (folderName && !document.getElementById('uploadFilesModal').style.display) {
+                // Ask if user wants to create a new folder
+                if (confirm(`Create new folder "${folderName}" and upload ${pdfFiles.length} PDF file(s)?`)) {
+                    createFolderAndUpload(folderName, pdfFiles);
+                }
+            } else {
+                // Update folder name if detected
+                if (folderName && document.getElementById('uploadFolderId').value) {
+                    const currentFolderName = document.getElementById('uploadFolderName').textContent;
+                    showSuccess(`Found ${pdfFiles.length} PDF file(s) from "${folderName}" (uploading to "${currentFolderName}")`);
+                }
+                addFilesToUpload(pdfFiles);
+            }
+        }
+
+        async function createFolderAndUpload(folderName, files) {
+            try {
+                // Create folder first
+                const response = await fetch('/api/folders', {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        name: folderName,
+                        path: '/',
+                        permissionLevel: 'view_only'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to create folder');
+                    return;
+                }
+
+                const folder = await response.json();
+                showSuccess(`Folder "${folderName}" created successfully`);
+
+                // Now upload files to the new folder
+                const formData = new FormData();
+                formData.append('folderId', folder.id);
+                
+                files.forEach(file => {
+                    formData.append('files', file);
+                });
+
+                const uploadResponse = await fetch('/api/files/upload', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${getToken()}`
+                    },
+                    body: formData
+                });
+
+                if (uploadResponse.ok) {
+                    const result = await uploadResponse.json();
+                    showSuccess(result.message || `Uploaded ${files.length} files to "${folderName}"`);
+                    loadFolders();
+                    loadFiles();
+                } else {
+                    const error = await uploadResponse.json();
+                    showError(error.message || 'Failed to upload files');
+                }
+            } catch (error) {
+                console.error('Error creating folder and uploading:', error);
+                showError('Failed to create folder and upload files');
+            }
         }
 
         function addFilesToUpload(files) {
             files.forEach(file => {
                 if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                    selectedFilesToUpload.push(file);
+                    // Check for duplicates
+                    const isDuplicate = selectedFilesToUpload.some(f => 
+                        f.name === file.name && f.size === file.size
+                    );
+                    if (!isDuplicate) {
+                        selectedFilesToUpload.push(file);
+                    }
                 }
             });
             renderSelectedFiles();
@@ -843,13 +948,57 @@
                 uploadArea.classList.remove('drag-over');
             });
             
-            uploadArea.addEventListener('drop', (e) => {
+            uploadArea.addEventListener('drop', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 uploadArea.classList.remove('drag-over');
-                const files = Array.from(e.dataTransfer.files);
-                addFilesToUpload(files);
+                
+                const items = e.dataTransfer.items;
+                const files = [];
+                
+                // Process dropped items (supports folders and files)
+                if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i].webkitGetAsEntry();
+                        if (item) {
+                            await traverseFileTree(item, files);
+                        }
+                    }
+                } else {
+                    // Fallback for browsers that don't support items
+                    const droppedFiles = Array.from(e.dataTransfer.files);
+                    files.push(...droppedFiles);
+                }
+                
+                if (files.length > 0) {
+                    processFolderFiles(files);
+                }
             });
+        }
+
+        // Recursively traverse folder structure to get all files
+        async function traverseFileTree(item, files) {
+            if (item.isFile) {
+                return new Promise((resolve) => {
+                    item.file((file) => {
+                        // Only add PDF files
+                        if (file.name.toLowerCase().endsWith('.pdf')) {
+                            files.push(file);
+                        }
+                        resolve();
+                    });
+                });
+            } else if (item.isDirectory) {
+                const dirReader = item.createReader();
+                return new Promise((resolve) => {
+                    dirReader.readEntries(async (entries) => {
+                        for (let i = 0; i < entries.length; i++) {
+                            await traverseFileTree(entries[i], files);
+                        }
+                        resolve();
+                    });
+                });
+            }
         }
 
         async function viewFolderFiles(folderId, folderName) {
@@ -1043,6 +1192,60 @@
                 e.target.style.display = 'none';
             }
         });
+
+        // Global drag-and-drop for folders tab
+        const foldersTab = document.getElementById('folders');
+        if (foldersTab) {
+            let dragCounter = 0;
+            
+            foldersTab.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                dragCounter++;
+                if (dragCounter === 1) {
+                    foldersTab.style.background = '#f0f8ff';
+                    foldersTab.style.border = '2px dashed #3498db';
+                }
+            });
+            
+            foldersTab.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dragCounter--;
+                if (dragCounter === 0) {
+                    foldersTab.style.background = 'white';
+                    foldersTab.style.border = 'none';
+                }
+            });
+            
+            foldersTab.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+            
+            foldersTab.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                dragCounter = 0;
+                foldersTab.style.background = 'white';
+                foldersTab.style.border = 'none';
+                
+                const items = e.dataTransfer.items;
+                const files = [];
+                
+                if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i].webkitGetAsEntry();
+                        if (item) {
+                            await traverseFileTree(item, files);
+                        }
+                    }
+                } else {
+                    const droppedFiles = Array.from(e.dataTransfer.files);
+                    files.push(...droppedFiles);
+                }
+                
+                if (files.length > 0) {
+                    processFolderFiles(files);
+                }
+            });
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             loadUsers();
