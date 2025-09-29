@@ -26,10 +26,9 @@ app = Flask(__name__)
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# Database configuration - handle both SQLite and PostgreSQL
+# Database configuration
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
-    # Fix for newer SQLAlchemy versions
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///pdf_management.db'
@@ -217,6 +216,9 @@ def token_required(f):
             return jsonify({'message': 'Token has expired'}), 401
         except jwt.InvalidTokenError:
             return jsonify({'message': 'Invalid token'}), 401
+        except Exception as e:
+            logger.error(f"Token validation error: {e}")
+            return jsonify({'message': 'Invalid token'}), 401
         
         return f(current_user, *args, **kwargs)
     return decorated
@@ -235,11 +237,9 @@ def init_database():
     try:
         logger.info("Starting database initialization...")
         
-        # Create tables
         db.create_all()
         logger.info("Database tables created successfully")
         
-        # Check if admin user exists
         admin_user = User.query.filter_by(username='admin').first()
         if not admin_user:
             admin_user = User(
@@ -295,7 +295,6 @@ def login():
         if not username or not password:
             return jsonify({'message': 'Username and password are required'}), 400
         
-        # Check by username or email
         user = User.query.filter(
             (User.username == username) | (User.email == username)
         ).first()
@@ -306,7 +305,6 @@ def login():
         if not user.is_active:
             return jsonify({'message': 'Account is deactivated'}), 401
         
-        # Generate JWT token
         token = jwt.encode(
             {
                 'user_id': user.id,
@@ -359,27 +357,23 @@ def forgot_password():
         if not user:
             return jsonify({'message': 'Email not found'}), 404
         
-        # Generate new password
         new_password = generate_random_password()
         user.set_password(new_password)
         db.session.commit()
         
-        # Send email
         subject = "Password Reset - PDF Management System"
-        body = f"""
-        Hello {user.username},
-        
-        Your password has been reset. Your new login credentials are:
-        
-        Username: {user.username}
-        Email: {user.email}
-        New Password: {new_password}
-        
-        Please log in with these credentials and consider changing your password.
-        
-        Best regards,
-        PDF Management System
-        """
+        body = f"""Hello {user.username},
+
+Your password has been reset. Your new login credentials are:
+
+Username: {user.username}
+Email: {user.email}
+New Password: {new_password}
+
+Please log in with these credentials and consider changing your password.
+
+Best regards,
+PDF Management System"""
         
         if send_email(email, subject, body):
             return jsonify({'message': 'New password sent to your email'}), 200
@@ -409,13 +403,11 @@ def create_user(current_user):
     try:
         data = request.get_json()
         
-        # Validate required fields
         required_fields = ['username', 'email', 'password', 'role']
         for field in required_fields:
             if field not in data or not data[field]:
                 return jsonify({'message': f'{field} is required'}), 400
         
-        # Check if user exists
         if User.query.filter_by(username=data['username']).first():
             return jsonify({'message': 'Username already exists'}), 400
         
@@ -471,13 +463,11 @@ def delete_user(current_user, user_id):
     try:
         user = User.query.get_or_404(user_id)
         
-        # Prevent deleting the last admin user
         if user.role == 'admin':
             admin_count = User.query.filter_by(role='admin', is_active=True).count()
             if admin_count <= 1:
                 return jsonify({'message': 'Cannot delete the last admin user'}), 400
         
-        # Delete user permissions
         UserPermission.query.filter_by(user_id=user_id).delete()
         
         db.session.delete(user)
@@ -499,10 +489,8 @@ def set_user_permissions(current_user, user_id):
         folder_ids = data.get('folderIds', [])
         permission_level = data.get('permissionLevel', 'view_only')
         
-        # Delete existing permissions
         UserPermission.query.filter_by(user_id=user_id).delete()
         
-        # Add new permissions
         for folder_id in folder_ids:
             permission = UserPermission(
                 user_id=user_id,
@@ -583,14 +571,11 @@ def delete_folder(current_user, folder_id):
     try:
         folder = Folder.query.get_or_404(folder_id)
         
-        # Delete all files in the folder from S3
         for file in folder.files:
             delete_file_from_s3(file.s3_key)
         
-        # Delete folder permissions
         UserPermission.query.filter_by(folder_id=folder_id).delete()
         
-        # Delete the folder (this will cascade delete files due to relationship)
         db.session.delete(folder)
         db.session.commit()
         
@@ -623,7 +608,6 @@ def rename_folder(current_user, folder_id):
         db.session.rollback()
         return jsonify({'message': 'Internal server error'}), 500
 
-# NEW ENDPOINT: Get files in a folder
 @app.route('/api/folders/<int:folder_id>/files', methods=['GET'])
 @token_required
 def get_folder_files(current_user, folder_id):
@@ -676,21 +660,17 @@ def upload_files(current_user):
             if not file.filename.lower().endswith('.pdf'):
                 continue
             
-            # Read file content first
             file_content = file.read()
-            file.seek(0)  # Reset file pointer
+            file.seek(0)
             
-            # Generate secure filename
             original_filename = secure_filename(file.filename)
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
             filename = f"{timestamp}_{original_filename}"
             
-            # Upload to S3
             s3_key = upload_file_to_s3(file, filename)
             if not s3_key:
                 continue
             
-            # Save to database
             file_record = File(
                 filename=filename,
                 original_filename=original_filename,
@@ -721,10 +701,8 @@ def delete_file(current_user, file_id):
     try:
         file = File.query.get_or_404(file_id)
         
-        # Delete from S3
         delete_file_from_s3(file.s3_key)
         
-        # Delete from database
         db.session.delete(file)
         db.session.commit()
         
@@ -741,7 +719,6 @@ def view_file(current_user, file_id):
     try:
         file = File.query.get_or_404(file_id)
         
-        # Get file from S3
         file_obj = get_file_from_s3(file.s3_key)
         if not file_obj:
             return jsonify({'message': 'File not found'}), 404
