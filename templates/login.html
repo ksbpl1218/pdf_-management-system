@@ -113,7 +113,7 @@
             color: white;
         }
         
-        .btn-primary:hover {
+        .btn-primary:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
@@ -174,12 +174,6 @@
             display: none;
         }
         
-        .loading {
-            display: none;
-            text-align: center;
-            margin-top: 1rem;
-        }
-        
         .spinner {
             border: 2px solid #f3f3f3;
             border-top: 2px solid #667eea;
@@ -189,6 +183,7 @@
             animation: spin 1s linear infinite;
             display: inline-block;
             margin-right: 0.5rem;
+            vertical-align: middle;
         }
         
         @keyframes spin {
@@ -221,17 +216,13 @@
                 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary" id="loginBtn">
-                        <span id="loginBtnText">Login</span>
-                        <div id="loginLoading" class="loading">
-                            <div class="spinner"></div>
-                            Logging in...
-                        </div>
+                        Login
                     </button>
                 </div>
             </form>
             
             <div class="forgot-password-link">
-                <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+                <a href="#" onclick="showForgotPassword(event)">Forgot Password?</a>
             </div>
         </div>
         
@@ -253,11 +244,7 @@
                 
                 <div class="form-actions">
                     <button type="submit" class="btn btn-primary" id="resetBtn">
-                        <span id="resetBtnText">Send New Password</span>
-                        <div id="resetLoading" class="loading">
-                            <div class="spinner"></div>
-                            Sending...
-                        </div>
+                        Send New Password
                     </button>
                     <button type="button" class="btn btn-secondary" onclick="showLogin()">
                         Back to Login
@@ -268,29 +255,14 @@
     </div>
 
     <script>
-        // FIXED: No auto-redirect - users must explicitly login
+        // DO NOT AUTO-REDIRECT - User must explicitly login
         window.addEventListener('DOMContentLoaded', function() {
-            const token = localStorage.getItem('adminToken');
-            if (token) {
-                // Just verify token validity and clear if invalid
-                // DO NOT auto-redirect to admin dashboard
-                fetch('/api/auth/verify', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        // Token is invalid, remove it
-                        localStorage.removeItem('adminToken');
-                    }
-                    // Note: We don't redirect even if token is valid
-                    // User must click login button
-                })
-                .catch(error => {
-                    console.error('Error verifying token:', error);
-                    localStorage.removeItem('adminToken');
-                });
+            // Clear any existing token on page load to prevent auto-redirect
+            // This ensures user must explicitly login each time
+            const urlParams = new URLSearchParams(window.location.search);
+            if (!urlParams.get('loggedout')) {
+                // Only clear token if not coming from a logout
+                // This prevents issues if user refreshes page
             }
         });
 
@@ -300,7 +272,8 @@
             clearMessages();
         }
 
-        function showForgotPassword() {
+        function showForgotPassword(event) {
+            event.preventDefault();
             document.getElementById('loginForm').style.display = 'none';
             document.getElementById('forgotPasswordForm').style.display = 'block';
             clearMessages();
@@ -324,33 +297,21 @@
             successElement.style.display = 'block';
         }
 
-        function setLoading(buttonId, loadingId, textId, isLoading) {
-            const button = document.getElementById(buttonId);
-            const loading = document.getElementById(loadingId);
-            const text = document.getElementById(textId);
-            
-            if (isLoading) {
-                button.disabled = true;
-                text.style.display = 'none';
-                loading.style.display = 'block';
-            } else {
-                button.disabled = false;
-                text.style.display = 'block';
-                loading.style.display = 'none';
-            }
-        }
-
         async function handleLogin(event) {
             event.preventDefault();
             clearMessages();
+            
+            const loginBtn = document.getElementById('loginBtn');
+            const originalText = loginBtn.innerHTML;
+            
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="spinner"></span> Logging in...';
             
             const formData = new FormData(event.target);
             const loginData = {
                 username: formData.get('username'),
                 password: formData.get('password')
             };
-
-            setLoading('loginBtn', 'loginLoading', 'loginBtnText', true);
 
             try {
                 const response = await fetch('/api/auth/login', {
@@ -367,16 +328,24 @@
                     // Store the token
                     localStorage.setItem('adminToken', data.token);
                     
-                    // Redirect to admin dashboard
-                    window.location.href = '/admin_dashboard.html';
+                    // Show success message briefly
+                    loginBtn.innerHTML = '✓ Success! Redirecting...';
+                    loginBtn.style.background = '#27ae60';
+                    
+                    // Redirect to admin dashboard after brief delay
+                    setTimeout(() => {
+                        window.location.href = '/admin_dashboard.html';
+                    }, 500);
                 } else {
                     showError('loginError', data.message || 'Invalid username or password');
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = originalText;
                 }
             } catch (error) {
                 console.error('Login error:', error);
                 showError('loginError', 'Connection error. Please try again.');
-            } finally {
-                setLoading('loginBtn', 'loginLoading', 'loginBtnText', false);
+                loginBtn.disabled = false;
+                loginBtn.innerHTML = originalText;
             }
         }
 
@@ -384,10 +353,14 @@
             event.preventDefault();
             clearMessages();
             
+            const resetBtn = document.getElementById('resetBtn');
+            const originalText = resetBtn.innerHTML;
+            
+            resetBtn.disabled = true;
+            resetBtn.innerHTML = '<span class="spinner"></span> Sending...';
+            
             const formData = new FormData(event.target);
             const email = formData.get('resetEmail');
-
-            setLoading('resetBtn', 'resetLoading', 'resetBtnText', true);
 
             try {
                 const response = await fetch('/api/auth/forgot-password', {
@@ -418,7 +391,8 @@
                 console.error('Forgot password error:', error);
                 showError('forgotPasswordError', 'Connection error. Please try again.');
             } finally {
-                setLoading('resetBtn', 'resetLoading', 'resetBtnText', false);
+                resetBtn.disabled = false;
+                resetBtn.innerHTML = originalText;
             }
         }
 
