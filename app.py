@@ -7,27 +7,23 @@ import string
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from io import BytesIO
 
-from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify, send_from_directory, send_file
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import jwt
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
-from sqlalchemy import text
-from io import BytesIO
+from botocore.exceptions import ClientError
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
-# Database configuration
 database_url = os.environ.get('DATABASE_URL')
 if database_url and database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
@@ -35,22 +31,18 @@ if database_url and database_url.startswith('postgres://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///pdf_management.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# AWS S3 Configuration
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
 AWS_S3_BUCKET_NAME = os.environ.get('AWS_S3_BUCKET_NAME')
 AWS_S3_REGION = os.environ.get('AWS_S3_REGION', 'us-east-1')
 
-# Email Configuration
 SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp.gmail.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
 EMAIL_USERNAME = os.environ.get('EMAIL_USERNAME')
 EMAIL_PASSWORD = os.environ.get('EMAIL_PASSWORD')
 
-# Initialize extensions
 db = SQLAlchemy(app)
 
-# Initialize S3 client
 try:
     s3_client = boto3.client(
         's3',
@@ -63,7 +55,6 @@ except Exception as e:
     logger.error(f"Error initializing S3 client: {e}")
     s3_client = None
 
-# Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -133,30 +124,24 @@ class UserPermission(db.Model):
     folder_id = db.Column(db.Integer, db.ForeignKey('folder.id'), nullable=False)
     permission_level = db.Column(db.String(50), nullable=False, default='view_only')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
     __table_args__ = (db.UniqueConstraint('user_id', 'folder_id'),)
 
-# Utility Functions
 def generate_random_password(length=12):
-    """Generate a random password"""
     characters = string.ascii_letters + string.digits + "!@#$%^&*"
     return ''.join(secrets.choice(characters) for _ in range(length))
 
 def send_email(to_email, subject, body):
-    """Send email using SMTP"""
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL_USERNAME
         msg['To'] = to_email
         msg['Subject'] = subject
-        
         msg.attach(MIMEText(body, 'plain'))
         
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
-        text = msg.as_string()
-        server.sendmail(EMAIL_USERNAME, to_email, text)
+        server.sendmail(EMAIL_USERNAME, to_email, msg.as_string())
         server.quit()
         
         logger.info(f"Email sent successfully to {to_email}")
@@ -166,7 +151,6 @@ def send_email(to_email, subject, body):
         return False
 
 def upload_file_to_s3(file, filename):
-    """Upload file to S3 and return the key"""
     try:
         s3_key = f"uploads/{filename}"
         s3_client.upload_fileobj(
@@ -175,13 +159,13 @@ def upload_file_to_s3(file, filename):
             s3_key,
             ExtraArgs={'ContentType': 'application/pdf'}
         )
+        logger.info(f"File uploaded to S3: {s3_key}")
         return s3_key
     except Exception as e:
         logger.error(f"Error uploading file to S3: {e}")
         return None
 
 def delete_file_from_s3(s3_key):
-    """Delete file from S3"""
     try:
         s3_client.delete_object(Bucket=AWS_S3_BUCKET_NAME, Key=s3_key)
         return True
@@ -190,15 +174,13 @@ def delete_file_from_s3(s3_key):
         return False
 
 def get_file_from_s3(s3_key):
-    """Get file from S3"""
     try:
         response = s3_client.get_object(Bucket=AWS_S3_BUCKET_NAME, Key=s3_key)
-        return response['Body']
+        return response['Body'].read()
     except Exception as e:
         logger.error(f"Error getting file from S3: {e}")
         return None
 
-# Authentication decorator
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -232,12 +214,9 @@ def admin_required(f):
         return f(current_user, *args, **kwargs)
     return decorated
 
-# Database initialization
 def init_database():
-    """Initialize database with proper error handling"""
     try:
         logger.info("Starting database initialization...")
-        
         db.create_all()
         logger.info("Database tables created successfully")
         
@@ -258,7 +237,6 @@ def init_database():
         
         logger.info("Database initialization completed successfully")
         return True
-        
     except Exception as e:
         logger.error(f"Error during database initialization: {e}")
         try:
@@ -267,11 +245,9 @@ def init_database():
             pass
         return False
 
-# Initialize database
 with app.app_context():
     init_database()
 
-# Routes
 @app.route('/')
 def index():
     return redirect(url_for('login_page'))
@@ -289,7 +265,6 @@ def admin_dashboard():
 def user_dashboard():
     return render_template('user_dashboard.html')
 
-# Authentication API Routes
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     try:
@@ -325,7 +300,6 @@ def login():
             'token': token,
             'user': user.to_dict()
         }), 200
-        
     except Exception as e:
         logger.error(f"Login error: {e}")
         return jsonify({'message': 'Internal server error'}), 500
@@ -375,7 +349,7 @@ Username: {user.username}
 Email: {user.email}
 New Password: {new_password}
 
-Please log in with these credentials and consider changing your password.
+Please log in with these credentials.
 
 Best regards,
 PDF Management System"""
@@ -384,12 +358,10 @@ PDF Management System"""
             return jsonify({'message': 'New password sent to your email'}), 200
         else:
             return jsonify({'message': 'Error sending email'}), 500
-            
     except Exception as e:
         logger.error(f"Forgot password error: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
-# User Management API Routes
 @app.route('/api/users', methods=['GET'])
 @token_required
 @admin_required
@@ -431,7 +403,6 @@ def create_user(current_user):
         db.session.commit()
         
         return jsonify(user.to_dict()), 201
-        
     except Exception as e:
         logger.error(f"Error creating user: {e}")
         db.session.rollback()
@@ -455,7 +426,6 @@ def update_user(current_user, user_id):
         
         db.session.commit()
         return jsonify(user.to_dict()), 200
-        
     except Exception as e:
         logger.error(f"Error updating user: {e}")
         db.session.rollback()
@@ -474,18 +444,15 @@ def delete_user(current_user, user_id):
                 return jsonify({'message': 'Cannot delete the last admin user'}), 400
         
         UserPermission.query.filter_by(user_id=user_id).delete()
-        
         db.session.delete(user)
         db.session.commit()
         
         return jsonify({'message': 'User deleted successfully'}), 200
-        
     except Exception as e:
         logger.error(f"Error deleting user: {e}")
         db.session.rollback()
         return jsonify({'message': 'Internal server error'}), 500
 
-# User-specific folder access
 @app.route('/api/user/folders', methods=['GET'])
 @token_required
 def get_user_folders(current_user):
@@ -493,7 +460,6 @@ def get_user_folders(current_user):
         if current_user.role == 'admin':
             folders = Folder.query.all()
         else:
-            # Get folders the user has permission to access
             permissions = UserPermission.query.filter_by(user_id=current_user.id).all()
             folder_ids = [p.folder_id for p in permissions]
             folders = Folder.query.filter(Folder.id.in_(folder_ids)).all() if folder_ids else []
@@ -506,7 +472,6 @@ def get_user_folders(current_user):
         logger.error(f"Error getting user folders: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
-# Folder Management API Routes
 @app.route('/api/folders', methods=['GET'])
 @token_required
 def get_folders(current_user):
@@ -537,7 +502,6 @@ def create_folder(current_user):
         db.session.commit()
         
         return jsonify(folder.to_dict()), 201
-        
     except Exception as e:
         logger.error(f"Error creating folder: {e}")
         db.session.rollback()
@@ -557,7 +521,6 @@ def update_folder(current_user, folder_id):
         
         db.session.commit()
         return jsonify(folder.to_dict()), 200
-        
     except Exception as e:
         logger.error(f"Error updating folder: {e}")
         db.session.rollback()
@@ -574,12 +537,10 @@ def delete_folder(current_user, folder_id):
             delete_file_from_s3(file.s3_key)
         
         UserPermission.query.filter_by(folder_id=folder_id).delete()
-        
         db.session.delete(folder)
         db.session.commit()
         
         return jsonify({'message': 'Folder deleted successfully'}), 200
-        
     except Exception as e:
         logger.error(f"Error deleting folder: {e}")
         db.session.rollback()
@@ -601,7 +562,6 @@ def rename_folder(current_user, folder_id):
         db.session.commit()
         
         return jsonify(folder.to_dict()), 200
-        
     except Exception as e:
         logger.error(f"Error renaming folder: {e}")
         db.session.rollback()
@@ -619,12 +579,10 @@ def get_folder_files(current_user, folder_id):
             'folder': folder.to_dict(),
             'files': [file.to_dict() for file in files]
         }), 200
-        
     except Exception as e:
         logger.error(f"Error getting folder files: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
-# File Management API Routes
 @app.route('/api/files', methods=['GET'])
 @token_required
 def get_files(current_user):
@@ -663,7 +621,7 @@ def upload_files(current_user):
             file.seek(0)
             
             original_filename = secure_filename(file.filename)
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S_%f')
             filename = f"{timestamp}_{original_filename}"
             
             s3_key = upload_file_to_s3(file, filename)
@@ -687,7 +645,6 @@ def upload_files(current_user):
             'message': f'Successfully uploaded {len(uploaded_files)} files',
             'files': [f.to_dict() for f in uploaded_files]
         }), 200
-        
     except Exception as e:
         logger.error(f"Error uploading files: {e}")
         db.session.rollback()
@@ -699,14 +656,11 @@ def upload_files(current_user):
 def delete_file(current_user, file_id):
     try:
         file = File.query.get_or_404(file_id)
-        
         delete_file_from_s3(file.s3_key)
-        
         db.session.delete(file)
         db.session.commit()
         
         return jsonify({'message': 'File deleted successfully'}), 200
-        
     except Exception as e:
         logger.error(f"Error deleting file: {e}")
         db.session.rollback()
@@ -718,20 +672,18 @@ def view_file(current_user, file_id):
     try:
         file = File.query.get_or_404(file_id)
         
-        file_obj = get_file_from_s3(file.s3_key)
-        if not file_obj:
-            return jsonify({'message': 'File not found'}), 404
+        file_data = get_file_from_s3(file.s3_key)
+        if not file_data:
+            return jsonify({'message': 'File not found in storage'}), 404
         
-        # Read the file content into BytesIO
-        file_data = BytesIO(file_obj.read())
-        
-        return send_file(
+        return Response(
             file_data,
-            as_attachment=False,
-            download_name=file.original_filename,
-            mimetype='application/pdf'
+            mimetype='application/pdf',
+            headers={
+                'Content-Disposition': f'inline; filename="{file.original_filename}"',
+                'Content-Type': 'application/pdf'
+            }
         )
-        
     except Exception as e:
         logger.error(f"Error viewing file: {e}")
         return jsonify({'message': 'Internal server error'}), 500
