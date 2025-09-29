@@ -667,9 +667,28 @@ def delete_file(current_user, file_id):
         return jsonify({'message': 'Internal server error'}), 500
 
 @app.route('/api/files/<int:file_id>/view', methods=['GET'])
-@token_required
-def view_file(current_user, file_id):
+def view_file(file_id):
     try:
+        # Get token from query parameter or header
+        token = request.args.get('token') or request.headers.get('Authorization')
+        
+        if not token:
+            return jsonify({'message': 'Token is missing'}), 401
+        
+        # Validate token
+        try:
+            if token.startswith('Bearer '):
+                token = token[7:]
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            current_user = User.query.get(data['user_id'])
+            if not current_user or not current_user.is_active:
+                return jsonify({'message': 'Invalid token'}), 401
+        except jwt.ExpiredSignatureError:
+            return jsonify({'message': 'Token has expired'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'message': 'Invalid token'}), 401
+        
+        # Get file
         file = File.query.get_or_404(file_id)
         
         file_data = get_file_from_s3(file.s3_key)
@@ -681,7 +700,8 @@ def view_file(current_user, file_id):
             mimetype='application/pdf',
             headers={
                 'Content-Disposition': f'inline; filename="{file.original_filename}"',
-                'Content-Type': 'application/pdf'
+                'Content-Type': 'application/pdf',
+                'Cache-Control': 'no-cache'
             }
         )
     except Exception as e:
