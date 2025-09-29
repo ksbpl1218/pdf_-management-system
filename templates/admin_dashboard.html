@@ -16,8 +16,9 @@
         .tab { padding: 1rem 2rem; background-color: #ecf0f1; border: none; cursor: pointer; font-size: 1rem; flex: 1; text-align: center; }
         .tab.active { background-color: #3498db; color: white; }
         .tab:hover:not(.active) { background-color: #d5dbdb; }
-        .tab-content { display: none; background: white; padding: 2rem; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); min-height: 400px; }
+        .tab-content { display: none; background: white; padding: 2rem; border-radius: 0 0 8px 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); min-height: 400px; transition: background 0.3s; }
         .tab-content.active { display: block; }
+        .tab-content.drag-active { background-color: #f0f8ff; border: 3px dashed #3498db; }
         .actions { display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap; }
         .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; transition: all 0.3s; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -29,6 +30,8 @@
         .btn-warning:hover:not(:disabled) { background-color: #e67e22; }
         .btn-success { background-color: #27ae60; color: white; }
         .btn-success:hover:not(:disabled) { background-color: #229954; }
+        .btn-secondary { background-color: #95a5a6; color: white; }
+        .btn-secondary:hover:not(:disabled) { background-color: #7f8c8d; }
         .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
         .table-container { overflow-x: auto; }
         .table { width: 100%; border-collapse: collapse; }
@@ -56,10 +59,11 @@
         .loading { text-align: center; padding: 3rem; color: #7f8c8d; font-size: 1.1rem; }
         .file-upload-area { border: 2px dashed #bdc3c7; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1rem; transition: all 0.3s; cursor: pointer; }
         .file-upload-area:hover { border-color: #3498db; background-color: #f8f9fa; }
-        .file-upload-area.drag-over { border-color: #3498db; background-color: #e3f2fd; }
+        .file-upload-area.drag-over { border-color: #3498db; background-color: #e3f2fd; transform: scale(1.02); }
         .file-list { margin-top: 1rem; }
         .file-item { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; margin-bottom: 0.5rem; }
-        .action-buttons { display: flex; gap: 0.5rem; }
+        .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .drop-hint { background: #fff3cd; color: #856404; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ffeaa7; }
     </style>
 </head>
 <body>
@@ -111,8 +115,8 @@
 
         <div id="folders" class="tab-content">
             <h2 style="margin-bottom: 1.5rem; color: #2c3e50;">Folder Management</h2>
-            <div style="background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; color: #1976d2;">
-                <strong>💡 Tip:</strong> Drag and drop entire folders anywhere on this page to automatically create folders and upload all PDFs (including from subfolders)
+            <div class="drop-hint">
+                <strong>Drag & Drop Folders:</strong> Drop entire folders anywhere on this page to auto-create folders and upload all PDFs (including from subfolders)
             </div>
             <div class="actions">
                 <button class="btn btn-primary" onclick="showAddFolderModal()">Create Folder</button>
@@ -130,7 +134,7 @@
                             <th>Path</th>
                             <th>Permission</th>
                             <th>Files</th>
-                            <th style="width: 300px;">Actions</th>
+                            <th style="width: 350px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="folderTableBody">
@@ -205,7 +209,7 @@
                 </div>
                 <div class="actions">
                     <button type="submit" class="btn btn-primary">Save User</button>
-                    <button type="button" class="btn" onclick="hideModal('userModal')" style="background: #95a5a6; color: white;">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideModal('userModal')">Cancel</button>
                 </div>
             </form>
         </div>
@@ -226,7 +230,7 @@
                 </div>
                 <div class="actions">
                     <button type="submit" class="btn btn-primary">Save Folder</button>
-                    <button type="button" class="btn" onclick="hideModal('folderModal')" style="background: #95a5a6; color: white;">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideModal('folderModal')">Cancel</button>
                 </div>
             </form>
         </div>
@@ -247,7 +251,7 @@
                 </div>
                 <div class="actions">
                     <button type="submit" class="btn btn-primary">Rename</button>
-                    <button type="button" class="btn" onclick="hideModal('renameFolderModal')" style="background: #95a5a6; color: white;">Cancel</button>
+                    <button type="button" class="btn btn-secondary" onclick="hideModal('renameFolderModal')">Cancel</button>
                 </div>
             </form>
         </div>
@@ -261,20 +265,20 @@
                 <button class="close" onclick="hideModal('uploadFilesModal')">&times;</button>
             </div>
             <input type="hidden" id="uploadFolderId">
-            <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('fileInput').click()">
+            <div class="file-upload-area" id="fileUploadArea">
                 <p style="font-size: 1.1rem; color: #7f8c8d; margin-bottom: 1rem;">Drag and drop folders or PDF files here</p>
                 <p style="font-size: 0.9rem; color: #95a5a6; margin-bottom: 1rem;">Drop entire folders - PDFs in subfolders will be automatically detected</p>
-                <input type="file" id="fileInput" multiple webkitdirectory directory style="display: none;" onchange="handleFileSelect(event)">
                 <div style="margin-top: 1rem;">
-                    <button type="button" class="btn btn-primary" onclick="document.getElementById('fileInput').click(); event.stopPropagation();">Browse Folder</button>
-                    <button type="button" class="btn btn-secondary" onclick="document.getElementById('fileInputSingle').click(); event.stopPropagation();" style="background: #95a5a6; color: white;">Browse Files</button>
+                    <button type="button" class="btn btn-primary" onclick="openFolderBrowser(event)">Browse Folder</button>
+                    <button type="button" class="btn btn-secondary" onclick="openFileBrowser(event)">Browse Files</button>
                 </div>
-                <input type="file" id="fileInputSingle" multiple accept=".pdf" style="display: none;" onchange="handleFileSelect(event)">
+                <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
+                <input type="file" id="fileInput" multiple accept=".pdf" style="display: none;">
             </div>
             <div id="selectedFilesList" class="file-list"></div>
             <div class="actions">
                 <button type="button" class="btn btn-success" onclick="uploadFiles()" id="uploadBtn" disabled>Upload Files</button>
-                <button type="button" class="btn" onclick="hideModal('uploadFilesModal')" style="background: #95a5a6; color: white;">Cancel</button>
+                <button type="button" class="btn btn-secondary" onclick="hideModal('uploadFilesModal')">Cancel</button>
             </div>
         </div>
     </div>
@@ -316,9 +320,7 @@
 
         function logout() {
             if (confirm('Are you sure you want to logout?')) {
-                localStorage.removeItem('userToken');
-                localStorage.removeItem('username');
-                localStorage.removeItem('userRole');
+                localStorage.clear();
                 window.location.href = '/login.html';
             }
         }
@@ -359,7 +361,7 @@
             const div = document.createElement('div');
             div.className = 'error-message';
             div.textContent = message;
-            document.querySelector('.container').insertBefore(div, document.querySelector('.container').firstChild);
+            document.querySelector('.container').insertBefore(div, document.querySelector('.tabs'));
             setTimeout(() => div.remove(), 5000);
         }
 
@@ -367,7 +369,7 @@
             const div = document.createElement('div');
             div.className = 'success-message';
             div.textContent = message;
-            document.querySelector('.container').insertBefore(div, document.querySelector('.container').firstChild);
+            document.querySelector('.container').insertBefore(div, document.querySelector('.tabs'));
             setTimeout(() => div.remove(), 5000);
         }
 
@@ -430,9 +432,7 @@
         function toggleSelectAllUsers() {
             const checked = document.getElementById('selectAllUsers').checked;
             selectedUsers.clear();
-            if (checked) {
-                users.forEach(u => selectedUsers.add(u.id));
-            }
+            if (checked) users.forEach(u => selectedUsers.add(u.id));
             updateUserSelectionInfo();
             renderUsers();
         }
@@ -599,9 +599,7 @@
         function toggleSelectAllFolders() {
             const checked = document.getElementById('selectAllFolders').checked;
             selectedFolders.clear();
-            if (checked) {
-                folders.forEach(f => selectedFolders.add(f.id));
-            }
+            if (checked) folders.forEach(f => selectedFolders.add(f.id));
             updateFolderSelectionInfo();
             renderFolders();
         }
@@ -744,6 +742,16 @@
         }
 
         // FILE UPLOAD
+        function openFolderBrowser(e) {
+            e.stopPropagation();
+            document.getElementById('folderInput').click();
+        }
+
+        function openFileBrowser(e) {
+            e.stopPropagation();
+            document.getElementById('fileInput').click();
+        }
+
         function showUploadModal(folderId, folderName) {
             document.getElementById('uploadFolderId').value = folderId;
             document.getElementById('uploadFolderName').textContent = folderName;
@@ -753,13 +761,17 @@
             showModal('uploadFilesModal');
         }
 
-        function handleFileSelect(event) {
-            const files = Array.from(event.target.files);
+        document.getElementById('folderInput').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
             processFolderFiles(files);
-        }
+        });
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            addFilesToUpload(files);
+        });
 
         function processFolderFiles(files) {
-            // Extract folder name from the first file's path
             let folderName = null;
             if (files.length > 0 && files[0].webkitRelativePath) {
                 const pathParts = files[0].webkitRelativePath.split('/');
@@ -768,28 +780,22 @@
                 }
             }
 
-            // Filter PDF files from all folders and subfolders
-            const pdfFiles = files.filter(file => {
-                const fileName = file.name.toLowerCase();
-                return fileName.endsWith('.pdf');
-            });
+            const pdfFiles = files.filter(file => file.name.toLowerCase().endsWith('.pdf'));
 
             if (pdfFiles.length === 0) {
                 showError('No PDF files found in the selected folder(s)');
                 return;
             }
 
-            // If a folder was detected and we're not in upload modal, create folder and upload
-            if (folderName && !document.getElementById('uploadFilesModal').style.display) {
-                // Ask if user wants to create a new folder
+            const uploadModalVisible = document.getElementById('uploadFilesModal').style.display === 'block';
+            
+            if (folderName && !uploadModalVisible) {
                 if (confirm(`Create new folder "${folderName}" and upload ${pdfFiles.length} PDF file(s)?`)) {
                     createFolderAndUpload(folderName, pdfFiles);
                 }
             } else {
-                // Update folder name if detected
-                if (folderName && document.getElementById('uploadFolderId').value) {
-                    const currentFolderName = document.getElementById('uploadFolderName').textContent;
-                    showSuccess(`Found ${pdfFiles.length} PDF file(s) from "${folderName}" (uploading to "${currentFolderName}")`);
+                if (folderName) {
+                    showSuccess(`Found ${pdfFiles.length} PDF file(s) from "${folderName}"`);
                 }
                 addFilesToUpload(pdfFiles);
             }
@@ -797,7 +803,6 @@
 
         async function createFolderAndUpload(folderName, files) {
             try {
-                // Create folder first
                 const response = await fetch('/api/folders', {
                     method: 'POST',
                     headers: getHeaders(),
@@ -817,7 +822,6 @@
                 const folder = await response.json();
                 showSuccess(`Folder "${folderName}" created successfully`);
 
-                // Now upload files to the new folder
                 const formData = new FormData();
                 formData.append('folderId', folder.id);
                 
@@ -851,7 +855,6 @@
         function addFilesToUpload(files) {
             files.forEach(file => {
                 if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                    // Check for duplicates
                     const isDuplicate = selectedFilesToUpload.some(f => 
                         f.name === file.name && f.size === file.size
                     );
@@ -934,54 +937,61 @@
             }
         }
 
+        // Drag and drop for upload modal
         const uploadArea = document.getElementById('fileUploadArea');
-        if (uploadArea) {
-            uploadArea.addEventListener('dragover', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uploadArea.classList.add('drag-over');
-            });
-            
-            uploadArea.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uploadArea.classList.remove('drag-over');
-            });
-            
-            uploadArea.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uploadArea.classList.remove('drag-over');
-                
-                const items = e.dataTransfer.items;
-                const files = [];
-                
-                // Process dropped items (supports folders and files)
-                if (items) {
-                    for (let i = 0; i < items.length; i++) {
-                        const item = items[i].webkitGetAsEntry();
-                        if (item) {
-                            await traverseFileTree(item, files);
-                        }
-                    }
-                } else {
-                    // Fallback for browsers that don't support items
-                    const droppedFiles = Array.from(e.dataTransfer.files);
-                    files.push(...droppedFiles);
-                }
-                
-                if (files.length > 0) {
-                    processFolderFiles(files);
-                }
-            });
-        }
+        let uploadDragCounter = 0;
 
-        // Recursively traverse folder structure to get all files
+        uploadArea.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadDragCounter++;
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadDragCounter--;
+            if (uploadDragCounter === 0) {
+                uploadArea.classList.remove('drag-over');
+            }
+        });
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        uploadArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            uploadDragCounter = 0;
+            uploadArea.classList.remove('drag-over');
+            
+            const items = e.dataTransfer.items;
+            const files = [];
+            
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i].webkitGetAsEntry();
+                    if (item) {
+                        await traverseFileTree(item, files);
+                    }
+                }
+            } else {
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                files.push(...droppedFiles);
+            }
+            
+            if (files.length > 0) {
+                addFilesToUpload(files);
+            }
+        });
+
         async function traverseFileTree(item, files) {
             if (item.isFile) {
                 return new Promise((resolve) => {
                     item.file((file) => {
-                        // Only add PDF files
                         if (file.name.toLowerCase().endsWith('.pdf')) {
                             files.push(file);
                         }
@@ -991,12 +1001,19 @@
             } else if (item.isDirectory) {
                 const dirReader = item.createReader();
                 return new Promise((resolve) => {
-                    dirReader.readEntries(async (entries) => {
-                        for (let i = 0; i < entries.length; i++) {
-                            await traverseFileTree(entries[i], files);
-                        }
-                        resolve();
-                    });
+                    const readEntries = () => {
+                        dirReader.readEntries(async (entries) => {
+                            if (entries.length === 0) {
+                                resolve();
+                                return;
+                            }
+                            for (let i = 0; i < entries.length; i++) {
+                                await traverseFileTree(entries[i], files);
+                            }
+                            readEntries();
+                        });
+                    };
+                    readEntries();
                 });
             }
         }
@@ -1119,9 +1136,7 @@
         function toggleSelectAllFiles() {
             const checked = document.getElementById('selectAllFiles').checked;
             selectedFiles.clear();
-            if (checked) {
-                files.forEach(f => selectedFiles.add(f.id));
-            }
+            if (checked) files.forEach(f => selectedFiles.add(f.id));
             updateFileSelectionInfo();
             renderFiles();
         }
@@ -1187,65 +1202,60 @@
             loadFolders();
         }
 
+        // Global drag-and-drop for folders tab
+        const foldersTab = document.getElementById('folders');
+        let folderTabDragCounter = 0;
+
+        foldersTab.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            folderTabDragCounter++;
+            if (folderTabDragCounter === 1) {
+                foldersTab.classList.add('drag-active');
+            }
+        });
+
+        foldersTab.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            folderTabDragCounter--;
+            if (folderTabDragCounter === 0) {
+                foldersTab.classList.remove('drag-active');
+            }
+        });
+
+        foldersTab.addEventListener('dragover', (e) => {
+            e.preventDefault();
+        });
+
+        foldersTab.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            folderTabDragCounter = 0;
+            foldersTab.classList.remove('drag-active');
+            
+            const items = e.dataTransfer.items;
+            const files = [];
+            
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i].webkitGetAsEntry();
+                    if (item) {
+                        await traverseFileTree(item, files);
+                    }
+                }
+            } else {
+                const droppedFiles = Array.from(e.dataTransfer.files);
+                files.push(...droppedFiles);
+            }
+            
+            if (files.length > 0) {
+                processFolderFiles(files);
+            }
+        });
+
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
                 e.target.style.display = 'none';
             }
         });
-
-        // Global drag-and-drop for folders tab
-        const foldersTab = document.getElementById('folders');
-        if (foldersTab) {
-            let dragCounter = 0;
-            
-            foldersTab.addEventListener('dragenter', (e) => {
-                e.preventDefault();
-                dragCounter++;
-                if (dragCounter === 1) {
-                    foldersTab.style.background = '#f0f8ff';
-                    foldersTab.style.border = '2px dashed #3498db';
-                }
-            });
-            
-            foldersTab.addEventListener('dragleave', (e) => {
-                e.preventDefault();
-                dragCounter--;
-                if (dragCounter === 0) {
-                    foldersTab.style.background = 'white';
-                    foldersTab.style.border = 'none';
-                }
-            });
-            
-            foldersTab.addEventListener('dragover', (e) => {
-                e.preventDefault();
-            });
-            
-            foldersTab.addEventListener('drop', async (e) => {
-                e.preventDefault();
-                dragCounter = 0;
-                foldersTab.style.background = 'white';
-                foldersTab.style.border = 'none';
-                
-                const items = e.dataTransfer.items;
-                const files = [];
-                
-                if (items) {
-                    for (let i = 0; i < items.length; i++) {
-                        const item = items[i].webkitGetAsEntry();
-                        if (item) {
-                            await traverseFileTree(item, files);
-                        }
-                    }
-                } else {
-                    const droppedFiles = Array.from(e.dataTransfer.files);
-                    files.push(...droppedFiles);
-                }
-                
-                if (files.length > 0) {
-                    processFolderFiles(files);
-                }
-            });
-        }
 
         document.addEventListener('DOMContentLoaded', () => {
             loadUsers();
