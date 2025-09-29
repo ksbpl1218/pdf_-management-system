@@ -118,6 +118,12 @@
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
         
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
         .btn-secondary {
             background: #f8f9fa;
             color: #6c757d;
@@ -262,24 +268,24 @@
     </div>
 
     <script>
-        // Check if user is already logged in
+        // FIXED: No auto-redirect - users must explicitly login
         window.addEventListener('DOMContentLoaded', function() {
             const token = localStorage.getItem('adminToken');
             if (token) {
-                // Verify token is still valid
+                // Just verify token validity and clear if invalid
+                // DO NOT auto-redirect to admin dashboard
                 fetch('/api/auth/verify', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 })
                 .then(response => {
-                    if (response.ok) {
-                        // Token is valid, redirect to dashboard
-                        window.location.href = '/admin_dashboard.html';
-                    } else {
+                    if (!response.ok) {
                         // Token is invalid, remove it
                         localStorage.removeItem('adminToken');
                     }
+                    // Note: We don't redirect even if token is valid
+                    // User must click login button
                 })
                 .catch(error => {
                     console.error('Error verifying token:', error);
