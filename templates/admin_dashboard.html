@@ -1148,7 +1148,8 @@
         }
 
         function viewFile(fileId) {
-            window.open(`/api/files/${fileId}/view`, '_blank');
+            const token = getToken();
+            window.open(`/api/files/${fileId}/view?token=${encodeURIComponent(token)}`, '_blank');
         }
 
         async function deleteFile(id) {
