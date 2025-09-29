@@ -5,12 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - PDF Management System</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -20,7 +15,6 @@
             justify-content: center;
             padding: 20px;
         }
-        
         .login-container {
             background: white;
             border-radius: 12px;
@@ -30,50 +24,26 @@
             max-width: 400px;
             animation: slideUp 0.5s ease-out;
         }
-        
         @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
         }
-        
         .login-header {
             background: linear-gradient(135deg, #2c3e50, #34495e);
             color: white;
             padding: 2rem;
             text-align: center;
         }
-        
-        .login-header h1 {
-            font-size: 1.8rem;
-            margin-bottom: 0.5rem;
-        }
-        
-        .login-header p {
-            opacity: 0.9;
-            font-size: 0.9rem;
-        }
-        
-        .login-form {
-            padding: 2rem;
-        }
-        
-        .form-group {
-            margin-bottom: 1.5rem;
-        }
-        
+        .login-header h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+        .login-header p { opacity: 0.9; font-size: 0.9rem; }
+        .login-form { padding: 2rem; }
+        .form-group { margin-bottom: 1.5rem; }
         .form-group label {
             display: block;
             margin-bottom: 0.5rem;
             font-weight: 600;
             color: #333;
         }
-        
         .form-group input {
             width: 100%;
             padding: 0.75rem;
@@ -82,19 +52,12 @@
             font-size: 1rem;
             transition: all 0.3s ease;
         }
-        
         .form-group input:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
-        
-        .form-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-        
+        .form-actions { display: flex; flex-direction: column; gap: 1rem; }
         .btn {
             padding: 0.75rem 1.5rem;
             border: none;
@@ -107,49 +70,32 @@
             text-align: center;
             display: inline-block;
         }
-        
         .btn-primary {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
         }
-        
         .btn-primary:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-        
         .btn-primary:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
         }
-        
         .btn-secondary {
             background: #f8f9fa;
             color: #6c757d;
             border: 1px solid #dee2e6;
         }
-        
-        .btn-secondary:hover {
-            background: #e9ecef;
-            color: #495057;
-        }
-        
-        .forgot-password-link {
-            text-align: center;
-            margin-top: 1rem;
-        }
-        
+        .btn-secondary:hover { background: #e9ecef; color: #495057; }
+        .forgot-password-link { text-align: center; margin-top: 1rem; }
         .forgot-password-link a {
             color: #667eea;
             text-decoration: none;
             font-size: 0.9rem;
         }
-        
-        .forgot-password-link a:hover {
-            text-decoration: underline;
-        }
-        
+        .forgot-password-link a:hover { text-decoration: underline; }
         .error-message {
             background-color: #f8d7da;
             color: #721c24;
@@ -159,7 +105,6 @@
             border: 1px solid #f5c6cb;
             font-size: 0.9rem;
         }
-        
         .success-message {
             background-color: #d1ecf1;
             color: #0c5460;
@@ -169,11 +114,7 @@
             border: 1px solid #bee5eb;
             font-size: 0.9rem;
         }
-        
-        .forgot-password-form {
-            display: none;
-        }
-        
+        .forgot-password-form { display: none; }
         .spinner {
             border: 2px solid #f3f3f3;
             border-top: 2px solid #667eea;
@@ -185,7 +126,6 @@
             margin-right: 0.5rem;
             vertical-align: middle;
         }
-        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
@@ -196,10 +136,9 @@
     <div class="login-container">
         <div class="login-header">
             <h1>PDF Management System</h1>
-            <p>Admin Login Portal</p>
+            <p>Login Portal</p>
         </div>
         
-        <!-- Login Form -->
         <div id="loginForm" class="login-form">
             <div id="loginError" class="error-message" style="display: none;"></div>
             
@@ -215,9 +154,7 @@
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary" id="loginBtn">
-                        Login
-                    </button>
+                    <button type="submit" class="btn btn-primary" id="loginBtn">Login</button>
                 </div>
             </form>
             
@@ -226,7 +163,6 @@
             </div>
         </div>
         
-        <!-- Forgot Password Form -->
         <div id="forgotPasswordForm" class="login-form forgot-password-form">
             <div id="forgotPasswordError" class="error-message" style="display: none;"></div>
             <div id="forgotPasswordSuccess" class="success-message" style="display: none;"></div>
@@ -243,29 +179,14 @@
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary" id="resetBtn">
-                        Send New Password
-                    </button>
-                    <button type="button" class="btn btn-secondary" onclick="showLogin()">
-                        Back to Login
-                    </button>
+                    <button type="submit" class="btn btn-primary" id="resetBtn">Send New Password</button>
+                    <button type="button" class="btn btn-secondary" onclick="showLogin()">Back to Login</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
-        // DO NOT AUTO-REDIRECT - User must explicitly login
-        window.addEventListener('DOMContentLoaded', function() {
-            // Clear any existing token on page load to prevent auto-redirect
-            // This ensures user must explicitly login each time
-            const urlParams = new URLSearchParams(window.location.search);
-            if (!urlParams.get('loggedout')) {
-                // Only clear token if not coming from a logout
-                // This prevents issues if user refreshes page
-            }
-        });
-
         function showLogin() {
             document.getElementById('loginForm').style.display = 'block';
             document.getElementById('forgotPasswordForm').style.display = 'none';
@@ -316,25 +237,28 @@
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(loginData)
                 });
 
                 const data = await response.json();
 
                 if (response.ok) {
-                    // Store the token
-                    localStorage.setItem('adminToken', data.token);
+                    // Store token and user info
+                    localStorage.setItem('userToken', data.token);
+                    localStorage.setItem('username', data.user.username);
+                    localStorage.setItem('userRole', data.user.role);
                     
-                    // Show success message briefly
-                    loginBtn.innerHTML = '✓ Success! Redirecting...';
+                    loginBtn.innerHTML = '&#10004; Success! Redirecting...';
                     loginBtn.style.background = '#27ae60';
                     
-                    // Redirect to admin dashboard after brief delay
+                    // Redirect based on role
                     setTimeout(() => {
-                        window.location.href = '/admin_dashboard.html';
+                        if (data.user.role === 'admin') {
+                            window.location.href = '/admin_dashboard.html';
+                        } else {
+                            window.location.href = '/user_dashboard.html';
+                        }
                     }, 500);
                 } else {
                     showError('loginError', data.message || 'Invalid username or password');
@@ -365,9 +289,7 @@
             try {
                 const response = await fetch('/api/auth/forgot-password', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: email })
                 });
 
@@ -376,14 +298,8 @@
                 if (response.ok) {
                     showSuccess('forgotPasswordSuccess', 
                         'A new password has been sent to your email address. Please check your inbox and spam folder.');
-                    
-                    // Clear the form
                     document.getElementById('forgotPasswordFormElement').reset();
-                    
-                    // Auto redirect to login after 5 seconds
-                    setTimeout(() => {
-                        showLogin();
-                    }, 5000);
+                    setTimeout(() => showLogin(), 5000);
                 } else {
                     showError('forgotPasswordError', data.message || 'Failed to send new password. Please try again.');
                 }
@@ -396,7 +312,6 @@
             }
         }
 
-        // Clear error messages when user starts typing
         document.addEventListener('DOMContentLoaded', function() {
             const inputs = document.querySelectorAll('input');
             inputs.forEach(input => {
