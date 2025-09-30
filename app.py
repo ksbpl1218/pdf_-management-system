@@ -708,6 +708,45 @@ def view_file(file_id):
         logger.error(f"Error viewing file: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
+@app.route('/api/users/<int:user_id>/permissions', methods=['GET'])
+@token_required
+@admin_required
+def get_user_permissions(current_user, user_id):
+    try:
+        permissions = UserPermission.query.filter_by(user_id=user_id).all()
+        folder_ids = [p.folder_id for p in permissions]
+        return jsonify({'folderIds': folder_ids}), 200
+    except Exception as e:
+        logger.error(f"Error getting user permissions: {e}")
+        return jsonify({'message': 'Internal server error'}), 500
+
+@app.route('/api/users/<int:user_id>/permissions', methods=['POST'])
+@token_required
+@admin_required
+def set_user_permissions(current_user, user_id):
+    try:
+        data = request.get_json()
+        folder_ids = data.get('folderIds', [])
+        
+        # Delete existing permissions
+        UserPermission.query.filter_by(user_id=user_id).delete()
+        
+        # Add new permissions
+        for folder_id in folder_ids:
+            permission = UserPermission(
+                user_id=user_id,
+                folder_id=folder_id,
+                permission_level='view_only'
+            )
+            db.session.add(permission)
+        
+        db.session.commit()
+        return jsonify({'message': 'Permissions updated successfully'}), 200
+    except Exception as e:
+        logger.error(f"Error setting user permissions: {e}")
+        db.session.rollback()
+        return jsonify({'message': 'Internal server error'}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     host = '0.0.0.0'
