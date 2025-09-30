@@ -296,6 +296,27 @@
         </div>
     </div>
 
+    <!-- User Permissions Modal -->
+    <div id="permissionsModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Manage Folder Access for: <span id="permissionsUsername" style="color: #3498db;"></span></h3>
+                <button class="close" onclick="hideModal('permissionsModal')">&times;</button>
+            </div>
+            <input type="hidden" id="permissionsUserId">
+            <div style="margin-bottom: 1.5rem;">
+                <p style="color: #666; margin-bottom: 1rem;">Select folders this user can access (view only):</p>
+                <div id="folderPermissionsList" style="max-height: 400px; overflow-y: auto;">
+                    <div class="loading">Loading folders...</div>
+                </div>
+            </div>
+            <div class="actions">
+                <button type="button" class="btn btn-primary" onclick="saveUserPermissions()">Save Permissions</button>
+                <button type="button" class="btn btn-secondary" onclick="hideModal('permissionsModal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let selectedUsers = new Set();
         let selectedFolders = new Set();
@@ -354,6 +375,8 @@
                 selectedFilesToUpload = [];
                 document.getElementById('selectedFilesList').innerHTML = '';
                 document.getElementById('uploadBtn').disabled = true;
+            } else if (id === 'permissionsModal') {
+                document.getElementById('folderPermissionsList').innerHTML = '';
             }
         }
 
@@ -418,6 +441,7 @@
                     <td><span class="status ${u.isActive ? 'active' : 'inactive'}">${u.isActive ? 'Active' : 'Inactive'}</span></td>
                     <td class="action-buttons">
                         <button class="btn btn-primary btn-sm" onclick="editUser(${u.id})">Edit</button>
+                        <button class="btn btn-success btn-sm" onclick="showPermissionsModal(${u.id}, '${escapeHtml(u.username).replace(/'/g, "\\'")}')">Permissions</button>
                         <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">Delete</button>
                     </td>
                 </tr>
@@ -553,6 +577,79 @@
             showSuccess(`Deleted ${successCount} user(s)`);
             selectedUsers.clear();
             loadUsers();
+        }
+
+        // USER PERMISSIONS MANAGEMENT
+        async function showPermissionsModal(userId, username) {
+            document.getElementById('permissionsUserId').value = userId;
+            document.getElementById('permissionsUsername').textContent = username;
+            showModal('permissionsModal');
+            
+            const container = document.getElementById('folderPermissionsList');
+            container.innerHTML = '<div class="loading">Loading folders...</div>';
+            
+            try {
+                // Load all folders
+                const foldersResponse = await fetch('/api/folders', { headers: getHeaders() });
+                if (!foldersResponse.ok) throw new Error('Failed to load folders');
+                const allFolders = await foldersResponse.json();
+                
+                // Load user's current permissions
+                const permsResponse = await fetch(`/api/users/${userId}/permissions`, { headers: getHeaders() });
+                if (!permsResponse.ok) throw new Error('Failed to load permissions');
+                const permsData = await permsResponse.json();
+                const userFolderIds = permsData.folderIds || [];
+                
+                // Render folders with checkboxes
+                if (allFolders.length === 0) {
+                    container.innerHTML = '<p style="text-align: center; color: #7f8c8d; padding: 2rem;">No folders available</p>';
+                } else {
+                    container.innerHTML = allFolders.map(folder => `
+                        <div style="padding: 0.75rem; border: 1px solid #ecf0f1; border-radius: 4px; margin-bottom: 0.5rem; background: #f8f9fa;">
+                            <label style="display: flex; align-items: center; cursor: pointer;">
+                                <input type="checkbox" 
+                                       class="folder-permission-checkbox" 
+                                       value="${folder.id}" 
+                                       ${userFolderIds.includes(folder.id) ? 'checked' : ''}
+                                       style="width: auto; margin-right: 0.75rem;">
+                                <div>
+                                    <strong>${escapeHtml(folder.name)}</strong>
+                                    <br>
+                                    <small style="color: #7f8c8d;">${folder.file_count || 0} file(s)</small>
+                                </div>
+                            </label>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading permissions:', error);
+                container.innerHTML = '<div class="error-message">Failed to load folders</div>';
+            }
+        }
+
+        async function saveUserPermissions() {
+            const userId = document.getElementById('permissionsUserId').value;
+            const checkboxes = document.querySelectorAll('.folder-permission-checkbox:checked');
+            const folderIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            try {
+                const response = await fetch(`/api/users/${userId}/permissions`, {
+                    method: 'POST',
+                    headers: getHeaders(),
+                    body: JSON.stringify({ folderIds: folderIds })
+                });
+                
+                if (response.ok) {
+                    showSuccess('Permissions updated successfully');
+                    hideModal('permissionsModal');
+                } else {
+                    const error = await response.json();
+                    showError(error.message || 'Failed to update permissions');
+                }
+            } catch (error) {
+                console.error('Error saving permissions:', error);
+                showError('Failed to update permissions');
+            }
         }
 
         // FOLDER MANAGEMENT
