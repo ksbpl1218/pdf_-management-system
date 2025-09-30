@@ -129,6 +129,33 @@
             margin-bottom: 1rem;
             border: 1px solid #f5c6cb;
         }
+        .search-result-item {
+            padding: 1rem;
+            border: 1px solid #ecf0f1;
+            border-radius: 4px;
+            margin-bottom: 0.75rem;
+            background: #f8f9fa;
+            transition: all 0.2s;
+        }
+        .search-result-item:hover {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transform: translateY(-1px);
+        }
+        .search-result-file {
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 0.25rem;
+        }
+        .search-result-folder {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        .search-result-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
     </style>
 </head>
 <body>
@@ -160,8 +187,16 @@
     <div class="container">
         <div class="folders-section">
             <h2 class="section-title">Your Accessible Folders</h2>
-            <div style="margin-bottom: 1rem;">
-                <input type="text" id="folderSearch" placeholder="🔍 Search folders..." style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 4px; font-size: 1rem;" oninput="searchFolders(this.value)">
+            <div style="margin-bottom: 1rem; display: flex; gap: 1rem; flex-wrap: wrap;">
+                <input type="text" id="folderSearch" placeholder="🔍 Search folders..." style="flex: 1; min-width: 250px; padding: 0.75rem; border: 2px solid #ddd; border-radius: 4px; font-size: 1rem;" oninput="searchFolders(this.value)">
+                <input type="text" id="globalFileSearch" placeholder="📄 Search all PDF files..." style="flex: 1; min-width: 250px; padding: 0.75rem; border: 2px solid #3498db; border-radius: 4px; font-size: 1rem;" oninput="searchAllFiles(this.value)">
+            </div>
+            <div id="global-search-results" style="display: none; background: #fff; border: 2px solid #3498db; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; border-bottom: 2px solid #ecf0f1; padding-bottom: 1rem;">
+                    <h3 style="color: #2c3e50; margin: 0;">Search Results</h3>
+                    <button onclick="clearGlobalSearch()" style="background: #95a5a6; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Clear Search</button>
+                </div>
+                <div id="global-search-content"></div>
             </div>
             <div id="folders-container">
                 <div class="loading">Loading folders...</div>
@@ -188,11 +223,13 @@
         let currentFolderId = null;
         let allFolders = [];
         let allFiles = [];
+        let allFilesGlobal = [];
 
         document.addEventListener('DOMContentLoaded', function() {
             if (!checkAuth()) return;
             loadUserInfo();
             loadFolders();
+            loadAllFiles();
         });
 
         function loadUserInfo() {
@@ -200,6 +237,106 @@
             if (username) {
                 document.getElementById('username-display').textContent = username;
             }
+        }
+
+        async function loadAllFiles() {
+            try {
+                const token = localStorage.getItem('userToken');
+                
+                // Get all folders first
+                const foldersResponse = await fetch('/api/user/folders', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                if (!foldersResponse.ok) return;
+                
+                const foldersData = await foldersResponse.json();
+                const folders = foldersData.folders || [];
+                
+                // Load files from all folders
+                allFilesGlobal = [];
+                for (const folder of folders) {
+                    try {
+                        const filesResponse = await fetch(`/api/folders/${folder.id}/files`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (filesResponse.ok) {
+                            const filesData = await filesResponse.json();
+                            const files = filesData.files || [];
+                            files.forEach(file => {
+                                allFilesGlobal.push({
+                                    ...file,
+                                    folderName: folder.name,
+                                    folderId: folder.id
+                                });
+                            });
+                        }
+                    } catch (error) {
+                        console.error(`Error loading files from folder ${folder.id}:`, error);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading all files:', error);
+            }
+        }
+
+        function searchAllFiles(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const resultsContainer = document.getElementById('global-search-results');
+            const resultsContent = document.getElementById('global-search-content');
+            const foldersContainer = document.getElementById('folders-container');
+            
+            if (!searchTerm) {
+                resultsContainer.style.display = 'none';
+                foldersContainer.style.display = 'block';
+                return;
+            }
+            
+            const matchedFiles = allFilesGlobal.filter(file => 
+                file.name.toLowerCase().includes(searchTerm)
+            );
+            
+            resultsContainer.style.display = 'block';
+            foldersContainer.style.display = 'none';
+            
+            if (matchedFiles.length === 0) {
+                resultsContent.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #7f8c8d;">
+                        <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">No PDF files found matching "${escapeHtml(query)}"</p>
+                        <small>Try searching with different keywords</small>
+                    </div>
+                `;
+            } else {
+                resultsContent.innerHTML = `
+                    <div style="margin-bottom: 1rem; color: #27ae60; font-weight: 600;">
+                        Found ${matchedFiles.length} file(s) matching "${escapeHtml(query)}"
+                    </div>
+                    ${matchedFiles.map(file => `
+                        <div class="search-result-item">
+                            <div class="search-result-file">${escapeHtml(file.name)}</div>
+                            <div class="search-result-folder">📁 ${escapeHtml(file.folderName)}</div>
+                            <div class="search-result-actions">
+                                <small style="color: #7f8c8d;">Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.uploaded_at)}</small>
+                                <div style="flex: 1;"></div>
+                                <a href="/api/files/${file.id}/view?token=${encodeURIComponent(localStorage.getItem('userToken'))}" class="view-btn" target="_blank">View PDF</a>
+                            </div>
+                        </div>
+                    `).join('')}
+                `;
+            }
+        }
+
+        function clearGlobalSearch() {
+            document.getElementById('globalFileSearch').value = '';
+            document.getElementById('global-search-results').style.display = 'none';
+            document.getElementById('folders-container').style.display = 'block';
         }
 
         async function loadFolders() {
