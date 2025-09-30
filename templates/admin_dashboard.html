@@ -116,7 +116,8 @@
         <div id="folders" class="tab-content">
             <h2 style="margin-bottom: 1.5rem; color: #2c3e50;">Folder Management</h2>
             <div class="drop-hint">
-                <strong>Drag & Drop Folders:</strong> Drop entire folders anywhere on this page to auto-create folders and upload all PDFs (including from subfolders)
+                <strong>📁 Drag & Drop Folders Here:</strong> Drop entire folders anywhere on this page to auto-create folders and upload all PDFs (including from subfolders)
+                <br><small style="display: block; margin-top: 0.5rem;">You can also drop individual PDF files to create a folder for them</small>
             </div>
             <div class="actions">
                 <button class="btn btn-primary" onclick="showAddFolderModal()">Create Folder</button>
@@ -869,12 +870,20 @@
         });
 
         function processFolderFiles(files) {
+            // Try to get folder name from file path
             let folderName = null;
             if (files.length > 0 && files[0].webkitRelativePath) {
                 const pathParts = files[0].webkitRelativePath.split('/');
-                if (pathParts.length > 0) {
+                if (pathParts.length > 1) {
+                    // Has folder structure
                     folderName = pathParts[0];
                 }
+            }
+
+            // If no folder name detected, generate one from timestamp
+            if (!folderName && files.length > 0) {
+                const now = new Date();
+                folderName = `Upload_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
             }
 
             const pdfFiles = files.filter(file => file.name.toLowerCase().endsWith('.pdf'));
@@ -887,12 +896,14 @@
             const uploadModalVisible = document.getElementById('uploadFilesModal').style.display === 'block';
             
             if (folderName && !uploadModalVisible) {
+                // Dropped on Folders tab - create new folder
                 if (confirm(`Create new folder "${folderName}" and upload ${pdfFiles.length} PDF file(s)?`)) {
                     createFolderAndUpload(folderName, pdfFiles);
                 }
             } else {
+                // Dropped in upload modal - add to existing folder
                 if (folderName) {
-                    showSuccess(`Found ${pdfFiles.length} PDF file(s) from "${folderName}"`);
+                    showSuccess(`Found ${pdfFiles.length} PDF file(s)`);
                 }
                 addFilesToUpload(pdfFiles);
             }
@@ -1301,53 +1312,57 @@
         }
 
         // Global drag-and-drop for folders tab
-        const foldersTab = document.getElementById('folders');
-        let folderTabDragCounter = 0;
-
-        foldersTab.addEventListener('dragenter', (e) => {
-            e.preventDefault();
-            folderTabDragCounter++;
-            if (folderTabDragCounter === 1) {
-                foldersTab.classList.add('drag-active');
-            }
-        });
-
-        foldersTab.addEventListener('dragleave', (e) => {
-            e.preventDefault();
-            folderTabDragCounter--;
-            if (folderTabDragCounter === 0) {
-                foldersTab.classList.remove('drag-active');
-            }
-        });
-
-        foldersTab.addEventListener('dragover', (e) => {
-            e.preventDefault();
-        });
-
-        foldersTab.addEventListener('drop', async (e) => {
-            e.preventDefault();
-            folderTabDragCounter = 0;
-            foldersTab.classList.remove('drag-active');
+        function initFolderTabDragDrop() {
+            const foldersTab = document.getElementById('folders');
+            if (!foldersTab) return;
             
-            const items = e.dataTransfer.items;
-            const files = [];
-            
-            if (items) {
-                for (let i = 0; i < items.length; i++) {
-                    const item = items[i].webkitGetAsEntry();
-                    if (item) {
-                        await traverseFileTree(item, files);
-                    }
+            let folderTabDragCounter = 0;
+
+            foldersTab.addEventListener('dragenter', (e) => {
+                e.preventDefault();
+                folderTabDragCounter++;
+                if (folderTabDragCounter === 1) {
+                    foldersTab.classList.add('drag-active');
                 }
-            } else {
-                const droppedFiles = Array.from(e.dataTransfer.files);
-                files.push(...droppedFiles);
-            }
-            
-            if (files.length > 0) {
-                processFolderFiles(files);
-            }
-        });
+            });
+
+            foldersTab.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                folderTabDragCounter--;
+                if (folderTabDragCounter === 0) {
+                    foldersTab.classList.remove('drag-active');
+                }
+            });
+
+            foldersTab.addEventListener('dragover', (e) => {
+                e.preventDefault();
+            });
+
+            foldersTab.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                folderTabDragCounter = 0;
+                foldersTab.classList.remove('drag-active');
+                
+                const items = e.dataTransfer.items;
+                const files = [];
+                
+                if (items) {
+                    for (let i = 0; i < items.length; i++) {
+                        const item = items[i].webkitGetAsEntry();
+                        if (item) {
+                            await traverseFileTree(item, files);
+                        }
+                    }
+                } else {
+                    const droppedFiles = Array.from(e.dataTransfer.files);
+                    files.push(...droppedFiles);
+                }
+                
+                if (files.length > 0) {
+                    processFolderFiles(files);
+                }
+            });
+        }
 
         window.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal')) {
@@ -1357,6 +1372,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             loadUsers();
+            initFolderTabDragDrop();
         });
     </script>
 </body>
