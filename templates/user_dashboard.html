@@ -160,6 +160,9 @@
     <div class="container">
         <div class="folders-section">
             <h2 class="section-title">Your Accessible Folders</h2>
+            <div style="margin-bottom: 1rem;">
+                <input type="text" id="folderSearch" placeholder="🔍 Search folders..." style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 4px; font-size: 1rem;" oninput="searchFolders(this.value)">
+            </div>
             <div id="folders-container">
                 <div class="loading">Loading folders...</div>
             </div>
@@ -172,6 +175,9 @@
                 <h3 id="modal-folder-name">Folder Files</h3>
                 <button class="close-modal" onclick="closeModal()">Close</button>
             </div>
+            <div style="margin-bottom: 1rem;">
+                <input type="text" id="fileSearch" placeholder="🔍 Search files..." style="width: 100%; padding: 0.75rem; border: 2px solid #ddd; border-radius: 4px; font-size: 1rem;" oninput="searchFilesInModal(this.value)">
+            </div>
             <div id="files-container">
                 <div class="loading">Loading files...</div>
             </div>
@@ -180,6 +186,8 @@
 
     <script>
         let currentFolderId = null;
+        let allFolders = [];
+        let allFiles = [];
 
         document.addEventListener('DOMContentLoaded', function() {
             if (!checkAuth()) return;
@@ -213,23 +221,8 @@
                 }
                 
                 const data = await response.json();
-                const container = document.getElementById('folders-container');
-                
-                if (data.folders && data.folders.length > 0) {
-                    container.innerHTML = `
-                        <div class="folder-list">
-                            ${data.folders.map(folder => `
-                                <div class="folder-card" onclick="openFolder(${folder.id}, '${escapeHtml(folder.name)}')">
-                                    <div class="folder-name">${escapeHtml(folder.name)}</div>
-                                    <div class="folder-path">${escapeHtml(folder.path || '/')}</div>
-                                    <span class="permission-badge">${folder.permissionLevel || 'View Only'}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = '<div class="no-folders">No accessible folders found. Contact your administrator for access.</div>';
-                }
+                allFolders = data.folders || [];
+                renderFolders(allFolders);
             } catch (error) {
                 console.error('Error loading folders:', error);
                 const container = document.getElementById('folders-container');
@@ -237,10 +230,50 @@
             }
         }
 
+        function searchFolders(query) {
+            const searchTerm = query.toLowerCase().trim();
+            
+            if (!searchTerm) {
+                renderFolders(allFolders);
+                return;
+            }
+            
+            const filteredFolders = allFolders.filter(folder => 
+                folder.name.toLowerCase().includes(searchTerm) ||
+                (folder.path && folder.path.toLowerCase().includes(searchTerm))
+            );
+            
+            renderFolders(filteredFolders);
+        }
+
+        function renderFolders(folders) {
+            const container = document.getElementById('folders-container');
+            
+            if (folders && folders.length > 0) {
+                container.innerHTML = `
+                    <div class="folder-list">
+                        ${folders.map(folder => `
+                            <div class="folder-card" onclick="openFolder(${folder.id}, '${escapeHtml(folder.name)}')">
+                                <div class="folder-name">${escapeHtml(folder.name)}</div>
+                                <div class="folder-path">${escapeHtml(folder.path || '/')}</div>
+                                <span class="permission-badge">${folder.permissionLevel || 'View Only'}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                const message = document.getElementById('folderSearch').value 
+                    ? `No folders found matching "${escapeHtml(document.getElementById('folderSearch').value)}"`
+                    : 'No accessible folders found. Contact your administrator for access.';
+                container.innerHTML = `<div class="no-folders">${message}</div>`;
+            }
+        }
+
         async function openFolder(folderId, folderName) {
             currentFolderId = folderId;
             document.getElementById('modal-folder-name').textContent = folderName;
             document.getElementById('files-modal').style.display = 'block';
+            document.getElementById('fileSearch').value = '';
             
             try {
                 const token = localStorage.getItem('userToken');
@@ -260,29 +293,52 @@
                 }
                 
                 const data = await response.json();
-                const container = document.getElementById('files-container');
-                
-                if (data.files && data.files.length > 0) {
-                    container.innerHTML = `
-                        <ul class="file-list">
-                            ${data.files.map(file => `
-                                <li class="file-item">
-                                    <div>
-                                        <strong>${escapeHtml(file.name)}</strong>
-                                        <br>
-                                        <small>Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.uploaded_at)}</small>
-                                    </div>
-                                    <a href="/api/files/${file.id}/view?token=${encodeURIComponent(localStorage.getItem('userToken'))}" class="view-btn" target="_blank">View PDF</a>
-                                </li>
-                            `).join('')}
-                        </ul>
-                    `;
-                } else {
-                    container.innerHTML = '<div class="no-folders">No files found in this folder.</div>';
-                }
+                allFiles = data.files || [];
+                renderFiles(allFiles);
             } catch (error) {
                 console.error('Error loading files:', error);
                 document.getElementById('files-container').innerHTML = '<div class="error-message">Error loading files. Please try again.</div>';
+            }
+        }
+
+        function searchFilesInModal(query) {
+            const searchTerm = query.toLowerCase().trim();
+            
+            if (!searchTerm) {
+                renderFiles(allFiles);
+                return;
+            }
+            
+            const filteredFiles = allFiles.filter(file => 
+                file.name.toLowerCase().includes(searchTerm)
+            );
+            
+            renderFiles(filteredFiles);
+        }
+
+        function renderFiles(files) {
+            const container = document.getElementById('files-container');
+            
+            if (files && files.length > 0) {
+                container.innerHTML = `
+                    <ul class="file-list">
+                        ${files.map(file => `
+                            <li class="file-item">
+                                <div>
+                                    <strong>${escapeHtml(file.name)}</strong>
+                                    <br>
+                                    <small>Size: ${formatFileSize(file.size)} | Uploaded: ${formatDate(file.uploaded_at)}</small>
+                                </div>
+                                <a href="/api/files/${file.id}/view?token=${encodeURIComponent(localStorage.getItem('userToken'))}" class="view-btn" target="_blank">View PDF</a>
+                            </li>
+                        `).join('')}
+                    </ul>
+                `;
+            } else {
+                const message = document.getElementById('fileSearch').value 
+                    ? `No files found matching "${escapeHtml(document.getElementById('fileSearch').value)}"`
+                    : 'No files found in this folder.';
+                container.innerHTML = `<div class="no-folders">${message}</div>`;
             }
         }
 
