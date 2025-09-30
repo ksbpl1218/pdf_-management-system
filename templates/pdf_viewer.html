@@ -3,42 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ filename }}</title>
+    <title>{{ filename }} - View Only</title>
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f5f5f5;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            background-color: #2c3e50;
+            overflow: hidden;
         }
         .header {
-            background-color: #2c3e50;
+            background-color: #34495e;
             color: white;
-            padding: 10px 20px;
+            padding: 15px 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         .filename {
             font-size: 18px;
             font-weight: bold;
-        }
-        .permission-status {
-            font-size: 14px;
-            color: #e74c3c;
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 10px;
         }
-        .pdf-container {
-            width: 100%;
-            height: calc(100vh - 60px);
-            position: relative;
-        }
-        .pdf-viewer {
-            width: 100%;
-            height: 100%;
-            border: none;
+        .view-only-badge {
+            background-color: #e74c3c;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
         }
         .close-btn {
             background-color: #95a5a6;
@@ -47,40 +41,61 @@
             padding: 8px 16px;
             border-radius: 4px;
             cursor: pointer;
-            text-decoration: none;
-            display: inline-block;
+            font-size: 14px;
         }
         .close-btn:hover {
             background-color: #7f8c8d;
+        }
+        .pdf-container {
+            width: 100%;
+            height: calc(100vh - 60px);
+            background-color: #525252;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .watermark {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-45deg);
+            font-size: 120px;
+            color: rgba(231, 76, 60, 0.1);
+            pointer-events: none;
+            z-index: 9999;
+            font-weight: bold;
+            white-space: nowrap;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <div class="filename">{{ filename }}</div>
-        <div class="permission-status">
-            🔒 View Only - Download Disabled
+        <div class="filename">
+            <span>{{ filename }}</span>
+            <span class="view-only-badge">🔒 VIEW ONLY - DOWNLOAD DISABLED</span>
         </div>
-        <button class="close-btn" onclick="window.history.back()">Close</button>
+        <button class="close-btn" onclick="window.close()">Close</button>
     </div>
     
+    <div class="watermark">VIEW ONLY</div>
+    
     <div class="pdf-container">
-        <!-- Use the new PDF serving route -->
-        <iframe class="pdf-viewer" 
-                src="/pdf/{{ file_id }}#toolbar=0&navpanes=0&scrollbar=1&view=FitH&pagemode=none" 
-                type="application/pdf">
-            <p>Your browser does not support PDFs. Please download the PDF to view it.</p>
-        </iframe>
+        <iframe id="pdfFrame" src="/api/files/{{ file_id }}/content?token={{ token }}#toolbar=0&navpanes=0&scrollbar=1"></iframe>
     </div>
 
     <script>
-        // Disable right-click context menu
+        // Disable right-click
         document.addEventListener('contextmenu', function(e) {
             e.preventDefault();
             return false;
         });
         
-        // Disable keyboard shortcuts
+        // Disable keyboard shortcuts for save, print, etc.
         document.addEventListener('keydown', function(e) {
             // Disable Ctrl+S (Save), Ctrl+P (Print), Ctrl+A (Select All)
             if (e.ctrlKey && (e.key === 's' || e.key === 'p' || e.key === 'a')) {
@@ -92,7 +107,23 @@
                 e.preventDefault();
                 return false;
             }
+            // Disable Ctrl+Shift+I (Inspect)
+            if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+                e.preventDefault();
+                return false;
+            }
         });
+
+        // Prevent iframe access
+        window.addEventListener('message', function(e) {
+            e.stopImmediatePropagation();
+        }, true);
+
+        // Disable text selection
+        document.body.style.userSelect = 'none';
+        document.body.style.webkitUserSelect = 'none';
+        document.body.style.mozUserSelect = 'none';
+        document.body.style.msUserSelect = 'none';
     </script>
 </body>
 </html>
