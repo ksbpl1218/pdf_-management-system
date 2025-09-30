@@ -691,10 +691,27 @@ def view_file(file_id):
         # Get file
         file = File.query.get_or_404(file_id)
         
+        # Check permissions for non-admin users
+        if current_user.role != 'admin':
+            permission = UserPermission.query.filter_by(
+                user_id=current_user.id, 
+                folder_id=file.folder_id
+            ).first()
+            if not permission:
+                return jsonify({'message': 'Access denied'}), 403
+        
         file_data = get_file_from_s3(file.s3_key)
         if not file_data:
             return jsonify({'message': 'File not found in storage'}), 404
         
+        # Render custom PDF viewer HTML for view-only users
+        if current_user.role != 'admin':
+            return render_template('pdf_viewer.html', 
+                                   file_id=file_id, 
+                                   filename=file.original_filename,
+                                   token=token)
+        
+        # Admin can view directly
         return Response(
             file_data,
             mimetype='application/pdf',
@@ -706,6 +723,53 @@ def view_file(file_id):
         )
     except Exception as e:
         logger.error(f"Error viewing file: {e}")
+        return jsonify({'message': 'Internal server error'}), 500
+
+@app.route('/api/files/<int:file_id>/content', methods=['GET'])
+def get_file_content(file_id):
+    try:
+        # Get token from query parameter
+        token = request.args.get('token')
+        
+        if not token:
+            return jsonify({'message': 'Token is missing'}), 401
+        
+        # Validate token
+        try:
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            current_user = User.query.get(data['user_id'])
+            if not current_user or not current_user.is_active:
+                return jsonify({'message': 'Invalid token'}), 401
+        except:
+            return jsonify({'message': 'Invalid token'}), 401
+        
+        # Get file
+        file = File.query.get_or_404(file_id)
+        
+        # Check permissions for non-admin users
+        if current_user.role != 'admin':
+            permission = UserPermission.query.filter_by(
+                user_id=current_user.id, 
+                folder_id=file.folder_id
+            ).first()
+            if not permission:
+                return jsonify({'message': 'Access denied'}), 403
+        
+        file_data = get_file_from_s3(file.s3_key)
+        if not file_data:
+            return jsonify({'message': 'File not found in storage'}), 404
+        
+        return Response(
+            file_data,
+            mimetype='application/pdf',
+            headers={
+                'Content-Type': 'application/pdf',
+                'Cache-Control': 'no-cache',
+                'X-Content-Type-Options': 'nosniff'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error getting file content: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
 @app.route('/api/users/<int:user_id>/permissions', methods=['GET'])
