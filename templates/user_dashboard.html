@@ -392,7 +392,6 @@
                         ${folders.map(folder => `
                             <div class="folder-card" onclick="openFolder(${folder.id}, '${escapeHtml(folder.name)}')">
                                 <div class="folder-name">${escapeHtml(folder.name)}</div>
-                                <div class="folder-path">${escapeHtml(folder.path || '/')}</div>
                                 <span class="permission-badge">${folder.permissionLevel || 'View Only'}</span>
                             </div>
                         `).join('')}
