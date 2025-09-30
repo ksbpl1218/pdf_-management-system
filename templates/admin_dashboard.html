@@ -122,6 +122,7 @@
             <div class="actions">
                 <button class="btn btn-primary" onclick="showAddFolderModal()">Create Folder</button>
                 <button class="btn btn-danger" onclick="deleteSelectedFolders()">Delete Selected</button>
+                <input type="text" id="folderSearch" placeholder="🔍 Search folders..." style="padding: 0.75rem; border: 2px solid #bdc3c7; border-radius: 4px; font-size: 1rem; width: 300px;" oninput="searchFolders(this.value)">
             </div>
             <div id="folderSelectionInfo" class="selection-info" style="display:none;">
                 <span id="folderSelectionCount">0</span> folder(s) selected
@@ -149,6 +150,7 @@
             <h2 style="margin-bottom: 1.5rem; color: #2c3e50;">File Management</h2>
             <div class="actions">
                 <button class="btn btn-danger" onclick="deleteSelectedFiles()">Delete Selected</button>
+                <input type="text" id="fileSearch" placeholder="🔍 Search files..." style="padding: 0.75rem; border: 2px solid #bdc3c7; border-radius: 4px; font-size: 1rem; width: 300px;" oninput="searchFiles(this.value)">
             </div>
             <div id="fileSelectionInfo" class="selection-info" style="display:none;">
                 <span id="fileSelectionCount">0</span> file(s) selected
@@ -664,6 +666,42 @@
                 console.error('Error loading folders:', error);
                 showError('Failed to load folders');
             }
+        }
+
+        function searchFolders(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const tbody = document.getElementById('folderTableBody');
+            
+            if (!searchTerm) {
+                renderFolders();
+                return;
+            }
+            
+            const filteredFolders = folders.filter(f => 
+                f.name.toLowerCase().includes(searchTerm) ||
+                (f.path && f.path.toLowerCase().includes(searchTerm))
+            );
+            
+            if (filteredFolders.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #7f8c8d;">No folders found matching "' + escapeHtml(query) + '"</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filteredFolders.map(f => `
+                <tr>
+                    <td><input type="checkbox" value="${f.id}" ${selectedFolders.has(f.id) ? 'checked' : ''} onchange="toggleFolderSelection(${f.id})"></td>
+                    <td>${escapeHtml(f.name)}</td>
+                    <td>${escapeHtml(f.path || '/')}</td>
+                    <td>${f.permissionLevel === 'admin' ? 'Admin' : 'View Only'}</td>
+                    <td>${f.file_count || 0}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-primary btn-sm" onclick="showUploadModal(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Upload</button>
+                        <button class="btn btn-success btn-sm" onclick="viewFolderFiles(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">View Files</button>
+                        <button class="btn btn-warning btn-sm" onclick="showRenameModal(${f.id}, '${escapeHtml(f.name).replace(/'/g, "\\'")}')">Rename</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteFolder(${f.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         function renderFolders() {
@@ -1213,6 +1251,40 @@
                 console.error('Error loading files:', error);
                 showError('Failed to load files');
             }
+        }
+
+        function searchFiles(query) {
+            const searchTerm = query.toLowerCase().trim();
+            const tbody = document.getElementById('fileTableBody');
+            
+            if (!searchTerm) {
+                renderFiles();
+                return;
+            }
+            
+            const filteredFiles = files.filter(f => 
+                f.name.toLowerCase().includes(searchTerm) ||
+                (f.folderName && f.folderName.toLowerCase().includes(searchTerm))
+            );
+            
+            if (filteredFiles.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #7f8c8d;">No files found matching "' + escapeHtml(query) + '"</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = filteredFiles.map(f => `
+                <tr>
+                    <td><input type="checkbox" value="${f.id}" ${selectedFiles.has(f.id) ? 'checked' : ''} onchange="toggleFileSelection(${f.id})"></td>
+                    <td>${escapeHtml(f.name)}</td>
+                    <td>${escapeHtml(f.folderName || 'N/A')}</td>
+                    <td>${formatFileSize(f.size)}</td>
+                    <td>${formatDate(f.uploaded_at)}</td>
+                    <td class="action-buttons">
+                        <button class="btn btn-primary btn-sm" onclick="viewFile(${f.id})">View</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteFile(${f.id})">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
         }
 
         function renderFiles() {
