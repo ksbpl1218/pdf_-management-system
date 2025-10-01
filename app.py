@@ -759,13 +759,19 @@ def get_file_content(file_id):
         if not file_data:
             return jsonify({'message': 'File not found in storage'}), 404
         
+        # Additional headers to prevent download/save on mobile
         return Response(
             file_data,
             mimetype='application/pdf',
             headers={
                 'Content-Type': 'application/pdf',
-                'Cache-Control': 'no-cache',
-                'X-Content-Type-Options': 'nosniff'
+                'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+                'Pragma': 'no-cache',
+                'Expires': '0',
+                'X-Content-Type-Options': 'nosniff',
+                'X-Frame-Options': 'SAMEORIGIN',
+                'Content-Security-Policy': "default-src 'self'",
+                'X-Download-Options': 'noopen'
             }
         )
     except Exception as e:
